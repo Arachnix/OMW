@@ -1,0 +1,32 @@
+{
+  "name": "omw",
+  "version": "1.0.0",
+  "description": "**Target Campus:** Vellore Institute of Technology (VIT Vellore Main Campus)  \r **Remote Repository:** [https://github.com/codebreaker77/OMW.git](https://github.com/codebreaker77/OMW.git)",
+  "main": "src/server.js",
+  "directories": {
+    "doc": "docs",
+    "test": "tests"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node tests/api-test.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/codebreaker77/OMW.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "bugs": {
+    "url": "https://github.com/codebreaker77/OMW/issues"
+  },
+  "homepage": "https://github.com/codebreaker77/OMW#readme",
+  "dependencies": {
+    "cors": "^2.8.6",
+    "dotenv": "^18.0.0",
+    "express": "^5.2.1",
+    "ws": "^8.21.3"
+  }
+}
