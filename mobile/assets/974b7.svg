@@ -1,0 +1,16 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="496" height="496" viewBox="0 0 496 496" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="SwiftDrop Logo" clip-path="url(#clip0_0_4)">
+<path id="Vector" d="M119.04 0H376.96C442.66 0 496 53.34 496 119.04V376.96C496 442.66 442.66 496 376.96 496H119.04C53.34 496 0 442.66 0 376.96V119.04C0 53.34 53.34 0 119.04 0V0" fill="#0D9488"/>
+<path id="Vector_2" d="M128.96 208.32L248 138.88L367.04 208.32V347.2L248 416.64L128.96 347.2V208.32V208.32" stroke="white" stroke-width="24.8" stroke-linejoin="round"/>
+<path id="Vector_3" d="M248 138.88V277.76M367.04 208.32L248 277.76L128.96 208.32" stroke="white" stroke-width="24.8" stroke-linejoin="round"/>
+<g id="Vector_4">
+<path d="M267.84 178.56L208.32 267.84H257.92L228.16 337.28L297.6 238.08H238.08L267.84 178.56V178.56" fill="#FACC15"/>
+<path d="M267.84 178.56L208.32 267.84H257.92L228.16 337.28L297.6 238.08H238.08L267.84 178.56V178.56" stroke="#0D9488" stroke-width="7.44"/>
+</g>
+</g>
+<defs>
+<clipPath id="clip0_0_4">
+<rect width="496" height="496" fill="white"/>
+</clipPath>
+</defs>
+</svg>

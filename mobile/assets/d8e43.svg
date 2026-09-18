@@ -1,0 +1,7 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="390" height="400" viewBox="0 0 390 400" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="Urban Velocity Vector Overlay (SVG Route Path, Waypoints &#38; Animation) &#226;&#134;&#146; SVG">
+<path id="Vector" opacity="0.3" d="M50.7 320C78 270 107.25 240 156 210" stroke="#006C49" stroke-width="4.9375" stroke-linecap="round" stroke-dasharray="1.98 1.98"/>
+<path id="Vector_2" d="M50.7 320C78 270 107.25 240 156 210C209.625 178 243.75 160 331.5 100" stroke="#006C49" stroke-width="3.95" stroke-linecap="round" stroke-linejoin="round"/>
+<path id="routePulse" opacity="0.95" d="M156 210C209.625 178 243.75 160 331.5 100" stroke="#6FFBBE" stroke-width="3.95" stroke-linecap="round" stroke-dasharray="9.88 13.82"/>
+</g>
+</svg>
