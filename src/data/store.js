@@ -2,6 +2,11 @@
  * Reactive In-Memory State Store for OMW Backend
  */
 import { VIT_LOCATIONS, INITIAL_FRAUD_CASES } from './campus-data.js';
+import { isSupabaseLive, supabase } from '../db/supabaseClient.js';
+import { UserRepository } from '../db/repositories/userRepository.js';
+import { WalletRepository } from '../db/repositories/walletRepository.js';
+import { TaskRepository } from '../db/repositories/taskRepository.js';
+import { FraudRepository } from '../db/repositories/fraudRepository.js';
 
 class DataStore {
   constructor() {
@@ -218,6 +223,9 @@ class DataStore {
         runnerStaked: 0
       });
     }
+    if (isSupabaseLive()) {
+      UserRepository.create(userData).catch(err => console.error('[Supabase User Sync Error]:', err.message));
+    }
     return userData;
   }
 
@@ -236,11 +244,14 @@ class DataStore {
 
   addTransaction(tx) {
     const record = {
-      id: `tx-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+      id: tx.id || `tx-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
       timestamp: new Date().toISOString(),
       ...tx
     };
     this.transactions.unshift(record);
+    if (isSupabaseLive()) {
+      WalletRepository.addTransaction(record).catch(err => console.error('[Supabase Transaction Sync Error]:', err.message));
+    }
     return record;
   }
 
@@ -262,6 +273,9 @@ class DataStore {
 
   saveTask(task) {
     this.tasks.set(task.id, task);
+    if (isSupabaseLive()) {
+      TaskRepository.save(task).catch(err => console.error('[Supabase Task Sync Error]:', err.message));
+    }
     return task;
   }
 
@@ -293,6 +307,9 @@ class DataStore {
     const target = this.fraudCases.find(c => c.id === id);
     if (target) {
       target.featured = featuredType;
+      if (isSupabaseLive()) {
+        FraudRepository.setFeatured(id, featuredType).catch(err => console.error('[Supabase Fraud Sync Error]:', err.message));
+      }
       return target;
     }
     return null;

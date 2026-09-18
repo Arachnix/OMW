@@ -12,6 +12,8 @@ import { fileURLToPath } from 'url';
 // Load environment configuration
 dotenv.config();
 
+import { isSupabaseLive } from './db/supabaseClient.js';
+
 // Service & Route imports
 import { socketService } from './services/socket/socketService.js';
 import mapRoutes from './routes/mapRoutes.js';
@@ -44,6 +46,7 @@ app.get('/api/health', (req, res) => {
     system: 'OMW Campus Logistics Gateway',
     version: '1.0.0',
     targetCampus: 'Vellore Institute of Technology (VIT Vellore Main Campus)',
+    database: isSupabaseLive() ? 'supabase_live' : 'hybrid_in_memory_fallback',
     timestamp: new Date().toISOString(),
     port: process.env.PORT || 3033,
     peggedRate: '1 Token = ₹1 INR'
@@ -89,6 +92,7 @@ server.listen(PORT, () => {
   console.log(`⚡ WebSocket Hub: ws://localhost:${PORT}/ws`);
   console.log(`🏛️ Target Campus:  VIT Vellore Main Campus`);
   console.log(`💰 Pegged Value:   1 Token = ₹1 INR`);
+  console.log(`🗄️ Database Tier:  ${isSupabaseLive() ? 'Supabase PostgreSQL (Live)' : 'Hybrid In-Memory Fallback'}`);
   console.log('====================================================');
 });
 
