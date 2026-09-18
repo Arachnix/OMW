@@ -36,9 +36,51 @@ app.use(cors({ origin: '*' }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Serve static frontend assets
+// Serve static frontend assets & ES module views
+app.use(express.static(path.join(rootDir, 'public')));
 app.use('/public', express.static(path.join(rootDir, 'public')));
 app.use('/assets', express.static(path.join(rootDir, 'assets')));
+app.use('/src', express.static(path.join(rootDir, 'src')));
+
+// Master API Directory & Gateway Root
+app.get(['/api', '/api/v1'], (req, res) => {
+  const host = req.get('host') || 'omw-jout.onrender.com';
+  const protocol = req.secure || req.headers['x-forwarded-proto'] === 'https' ? 'https' : 'http';
+  const wsProtocol = protocol === 'https' ? 'wss' : 'ws';
+
+  res.json({
+    success: true,
+    name: 'OMW (On My Way) Campus Logistics & Mobility Gateway',
+    tagline: 'Hyper-Local Peer-to-Peer Campus Delivery & Escrow Protocol for VIT Vellore',
+    version: '1.0.0',
+    status: 'online',
+    campus: 'Vellore Institute of Technology (VIT Vellore Main Campus)',
+    database: isSupabaseLive() ? 'supabase_live' : 'hybrid_in_memory_fallback',
+    peggedRate: '1 Token = ₹1 INR',
+    documentation: 'https://github.com/codebreaker77/OMW/blob/main/docs/api/FLUTTER_INTEGRATION_GUIDE.md',
+    websocket: `${wsProtocol}://${host}/ws`,
+    liveSimulator: `${protocol}://${host}/public/tracking.html`,
+    endpoints: {
+      health: { method: 'GET', path: '/api/health', desc: 'System status & database tier' },
+      mapLocations: { method: 'GET', path: '/api/map/locations', desc: '24 VIT Vellore landmark nodes' },
+      mapCorridor: { method: 'GET', path: '/api/map/corridor', desc: '72 road-snapped GPS waypoints & navigation cues' },
+      routeCalculate: { method: 'POST', path: '/api/map/route-calculate', desc: 'Pedestrian detour & walking time estimate' },
+      tasks: { method: 'GET', path: '/api/tasks', desc: 'Active campus task feed sorted by corridor spatial priority' },
+      calculateWager: { method: 'POST', path: '/api/tasks/calculate-wager', desc: 'Dynamic Smart Slider wager calculator' },
+      createTask: { method: 'POST', path: '/api/tasks/create', desc: 'Post new task and lock requester escrow' },
+      claimTask: { method: 'POST', path: '/api/tasks/:id/claim', desc: 'Runner locks 25% commitment deposit' },
+      verifyPickup: { method: 'POST', path: '/api/tasks/:id/verify-pickup', desc: 'Verify source pickup OTP' },
+      verifyDelivery: { method: 'POST', path: '/api/tasks/:id/verify-delivery', desc: 'Verify destination delivery OTP & atomic payout' },
+      cancelTask: { method: 'POST', path: '/api/tasks/:id/cancel', desc: 'Requester cancels and receives 100% escrow refund' },
+      walletBalance: { method: 'GET', path: '/api/wallet/balance?userId=usr-rohit', desc: 'Tokens available, locked & staked' },
+      createPaymentOrder: { method: 'POST', path: '/api/payments/create-order', desc: 'Official Razorpay order generation' },
+      verifyPayment: { method: 'POST', path: '/api/payments/verify-payment', desc: 'HMAC-SHA256 signature verification' },
+      fiatCashout: { method: 'POST', path: '/api/payments/cashout', desc: 'Direct runner fiat cashout to UPI/bank' },
+      trustshieldShowcase: { method: 'GET', path: '/api/trustshield/showcase', desc: 'Fraud of the Day & Month editorial deterrence' },
+      userProfile: { method: 'GET', path: '/api/users/:id', desc: 'Student trust score & masked reg number' }
+    }
+  });
+});
 
 // Health check & System Metadata
 app.get('/api/health', (req, res) => {

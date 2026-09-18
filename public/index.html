@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ON MY WAY (OMW) — Hyper-Local Campus Mobility & Logistics Engine</title>
+  <link rel="stylesheet" href="/assets/styles.css">
+  <style>
+    :root {
+      --bg-dark: #090d16;
+      --card-bg: #111827;
+      --card-border: #1f2937;
+      --primary: #10b981;
+      --primary-glow: rgba(16, 185, 129, 0.2);
+      --accent: #6366f1;
+      --text-main: #f3f4f6;
+      --text-sub: #9ca3af;
+    }
+    body {
+      background: var(--bg-dark);
+      color: var(--text-main);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      line-height: 1.5;
+    }
+    .hero {
+      max-width: 1040px;
+      margin: 0 auto;
+      padding: 48px 20px 24px;
+      text-align: center;
+    }
+    .badge-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(16, 185, 129, 0.12);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      color: #34d399;
+      padding: 6px 14px;
+      border-radius: 9999px;
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 20px;
+      letter-spacing: 0.3px;
+    }
+    .pulse-dot {
+      width: 8px;
+      height: 8px;
+      background: #10b981;
+      border-radius: 50%;
+      box-shadow: 0 0 10px #10b981;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.85); }
+    }
+    h1 {
+      font-size: 2.75rem;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      margin: 0 0 14px;
+      background: linear-gradient(135deg, #ffffff 40%, #9ca3af 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .subtitle {
+      font-size: 1.15rem;
+      color: var(--text-sub);
+      max-width: 680px;
+      margin: 0 auto 36px;
+    }
+    .specs-grid {
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 40px;
+    }
+    .spec-chip {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      color: #e5e7eb;
+    }
+    .spec-chip strong {
+      color: var(--primary);
+    }
+    .cta-container {
+      display: flex;
+      justify-content: center;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-bottom: 50px;
+    }
+    .btn-primary {
+      background: #10b981;
+      color: #042f2e;
+      font-weight: 700;
+      padding: 13px 26px;
+      border-radius: 10px;
+      text-decoration: none;
+      font-size: 15px;
+      box-shadow: 0 4px 20px var(--primary-glow);
+      transition: all 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .btn-primary:hover {
+      background: #34d399;
+      transform: translateY(-2px);
+    }
+    .btn-secondary {
+      background: #1f2937;
+      color: #f3f4f6;
+      font-weight: 600;
+      padding: 13px 24px;
+      border-radius: 10px;
+      text-decoration: none;
+      font-size: 15px;
+      border: 1px solid #374151;
+      transition: all 0.2s ease;
+    }
+    .btn-secondary:hover {
+      background: #374151;
+      transform: translateY(-2px);
+    }
+    .section-title {
+      font-size: 1.35rem;
+      font-weight: 700;
+      color: #f9fafb;
+      margin: 40px 0 20px;
+      text-align: left;
+      border-bottom: 1px solid var(--card-border);
+      padding-bottom: 10px;
+    }
+    .cards-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 18px;
+      margin-bottom: 60px;
+      text-align: left;
+    }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 22px;
+      transition: transform 0.2s, border-color 0.2s;
+      text-decoration: none;
+      color: inherit;
+      display: flex;
+      flex-direction: column;
+    }
+    .card:hover {
+      transform: translateY(-3px);
+      border-color: #374151;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+    }
+    .card-icon {
+      font-size: 26px;
+      margin-bottom: 12px;
+    }
+    .card-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: #f9fafb;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .method-tag {
+      font-size: 11px;
+      font-weight: 700;
+      background: #064e3b;
+      color: #a7f3d0;
+      padding: 2px 7px;
+      border-radius: 4px;
+    }
+    .method-tag.post {
+      background: #1e1b4b;
+      color: #c7d2fe;
+    }
+    .method-tag.ws {
+      background: #3b0764;
+      color: #f5d0fe;
+    }
+    .card-desc {
+      font-size: 13px;
+      color: var(--text-sub);
+      margin-bottom: 14px;
+      flex-grow: 1;
+    }
+    .card-url {
+      font-family: monospace;
+      font-size: 12px;
+      color: #60a5fa;
+      background: rgba(96, 165, 250, 0.08);
+      padding: 6px 10px;
+      border-radius: 6px;
+      word-break: break-all;
+    }
+    .live-status-box {
+      background: #111827;
+      border: 1px solid #1f2937;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 40px;
+      text-align: left;
+    }
+    footer {
+      border-top: 1px solid #1f2937;
+      padding: 24px 20px;
+      text-align: center;
+      color: #6b7280;
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="hero">
+    <div class="badge-pill">
+      <span class="pulse-dot"></span>
+      OMW Core Gateway Online • Render Production
+    </div>
+
+    <h1>ON MY WAY (OMW)</h1>
+    <p class="subtitle">
+      Hyper-local peer-to-peer micro-mobility & favor escrow protocol engineered specifically for <strong>VIT Vellore Main Campus</strong>.
+    </p>
+
+    <div class="specs-grid">
+      <div class="spec-chip">🏛️ <strong>VIT Vellore</strong> (24 Landmark Nodes)</div>
+      <div class="spec-chip">🗺️ <strong>72 GPS</strong> Road Waypoints</div>
+      <div class="spec-chip">💰 <strong>₹1 INR</strong> = 1 Token Pegged</div>
+      <div class="spec-chip">🗄️ <strong>Supabase</strong> PostgreSQL Cloud</div>
+      <div class="spec-chip">⚡ <strong>WebSocket</strong> Telemetry (/ws)</div>
+    </div>
+
+    <div class="cta-container">
+      <a href="/public/tracking.html" class="btn-primary" target="_blank">
+        🗺️ Launch Campus GIS Map Simulator
+      </a>
+      <a href="/api" class="btn-secondary" target="_blank">
+        📡 View API Directory JSON
+      </a>
+      <a href="https://github.com/codebreaker77/OMW/blob/main/docs/api/FLUTTER_INTEGRATION_GUIDE.md" class="btn-secondary" target="_blank">
+        📱 Flutter Integration Guide
+      </a>
+    </div>
+
+    <!-- Live Telemetry Ping Box -->
+    <div class="live-status-box">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+        <span style="font-weight: 700; color: #f3f4f6; font-size: 14px;">⚡ Real-Time System Heartbeat</span>
+        <span id="pingBadge" style="font-size: 12px; color: #34d399;">Probing server...</span>
+      </div>
+      <pre id="pingJson" style="margin: 0; background: #090d16; padding: 12px; border-radius: 8px; font-family: monospace; font-size: 12px; color: #94a3b8; overflow-x: auto;">Connecting to /api/health...</pre>
+    </div>
+
+    <div class="section-title">🚀 Core API & Gateway Endpoints</div>
+
+    <div class="cards-grid">
+      <!-- Card 1 -->
+      <a href="/api/health" class="card" target="_blank">
+        <div class="card-icon">🩺</div>
+        <div class="card-title">
+          <span>System Health</span>
+          <span class="method-tag">GET</span>
+        </div>
+        <div class="card-desc">Returns live gateway health, database connectivity status, and token conversion peg.</div>
+        <div class="card-url">/api/health</div>
+      </a>
+
+      <!-- Card 2 -->
+      <a href="/api/map/locations" class="card" target="_blank">
+        <div class="card-icon">📍</div>
+        <div class="card-title">
+          <span>Campus Landmarks</span>
+          <span class="method-tag">GET</span>
+        </div>
+        <div class="card-desc">24 high-density VIT Vellore landmark nodes (SJT, TT Xerox, Foody Street, Q-Block).</div>
+        <div class="card-url">/api/map/locations</div>
+      </a>
+
+      <!-- Card 3 -->
+      <a href="/api/map/corridor" class="card" target="_blank">
+        <div class="card-icon">🛣️</div>
+        <div class="card-title">
+          <span>Delivery Corridor</span>
+          <span class="method-tag">GET</span>
+        </div>
+        <div class="card-desc">72 road-snapped GPS coordinates from Main Gate to Q Block with 6-stage navigation cues.</div>
+        <div class="card-url">/api/map/corridor</div>
+      </a>
+
+      <!-- Card 4 -->
+      <a href="/api/tasks" class="card" target="_blank">
+        <div class="card-icon">📋</div>
+        <div class="card-title">
+          <span>Active Task Feed</span>
+          <span class="method-tag">GET</span>
+        </div>
+        <div class="card-desc">Campus favor marketplace feed sorted dynamically by corridor proximity and walking alignment.</div>
+        <div class="card-url">/api/tasks</div>
+      </a>
+
+      <!-- Card 5 -->
+      <a href="/api/trustshield/showcase" class="card" target="_blank">
+        <div class="card-icon">🛡️</div>
+        <div class="card-title">
+          <span>TrustShield Showcase</span>
+          <span class="method-tag">GET</span>
+        </div>
+        <div class="card-desc">"Fraud of the Day & Month" editorial deterrence dossiers with velocity forensics.</div>
+        <div class="card-url">/api/trustshield/showcase</div>
+      </a>
+
+      <!-- Card 6 -->
+      <a href="/api/wallet/balance?userId=usr-rohit" class="card" target="_blank">
+        <div class="card-icon">💳</div>
+        <div class="card-title">
+          <span>Wallet Balance</span>
+          <span class="method-tag">GET</span>
+        </div>
+        <div class="card-desc">Inspect student wallet balance (available, locked in escrow, and runner staked).</div>
+        <div class="card-url">/api/wallet/balance?userId=usr-rohit</div>
+      </a>
+
+      <!-- Card 7 -->
+      <div class="card">
+        <div class="card-icon">⚡</div>
+        <div class="card-title">
+          <span>WebSocket Stream</span>
+          <span class="method-tag ws">WSS</span>
+        </div>
+        <div class="card-desc">Bidirectional real-time runner GPS location broadcasts and en-route task alerts.</div>
+        <div class="card-url">wss://omw-jout.onrender.com/ws</div>
+      </div>
+
+      <!-- Card 8 -->
+      <a href="/public/tracking.html" class="card" target="_blank">
+        <div class="card-icon">🎮</div>
+        <div class="card-title">
+          <span>Leaflet GIS Simulator</span>
+          <span class="method-tag">PREVIEW</span>
+        </div>
+        <div class="card-desc">Interactive campus tracking simulator with dark mode map, turn-by-turn HUD & OTPs.</div>
+        <div class="card-url">/public/tracking.html</div>
+      </a>
+    </div>
+  </div>
+
+  <footer>
+    <strong>OMW (On My Way)</strong> — Built for VIT Vellore • Open Source P2P Campus Logistics
+  </footer>
+
+  <script>
+    // Live probe of server health
+    const start = performance.now();
+    fetch('/api/health')
+      .then(res => res.json())
+      .then(data => {
+        const latency = Math.round(performance.now() - start);
+        document.getElementById('pingBadge').innerHTML = `🟢 Online • ${latency}ms latency • ${data.database}`;
+        document.getElementById('pingJson').textContent = JSON.stringify(data, null, 2);
+      })
+      .catch(err => {
+        document.getElementById('pingBadge').innerHTML = `🔴 Offline: ${err.message}`;
+      });
+  </script>
+</body>
+</html>
