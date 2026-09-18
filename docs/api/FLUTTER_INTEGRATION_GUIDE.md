@@ -10,10 +10,10 @@ Depending on the development environment, configure the base API and WebSocket U
 
 | Environment | Base REST URL | WebSocket URL |
 |---|---|---|
-| **Android Emulator** | `http://10.0.2.2:3033/api` | `ws://10.0.2.2:3033/ws` |
-| **iOS Simulator** | `http://localhost:3033/api` | `ws://localhost:3033/ws` |
-| **Physical Phone (LAN / Wi-Fi)** | `http://<YOUR_DEV_MACHINE_IP>:3033/api` | `ws://<YOUR_DEV_MACHINE_IP>:3033/ws` |
-| **Production Cloud** | `https://<domain>/api` | `wss://<domain>/ws` |
+| **Live Render Cloud (Recommended)** | `https://omw-jout.onrender.com/api` | `wss://omw-jout.onrender.com/ws` |
+| **Android Emulator (Local)** | `http://10.0.2.2:3033/api` | `ws://10.0.2.2:3033/ws` |
+| **iOS Simulator (Local)** | `http://localhost:3033/api` | `ws://localhost:3033/ws` |
+| **Physical Phone (Local LAN / Wi-Fi)** | `http://<YOUR_DEV_MACHINE_IP>:3033/api` | `ws://<YOUR_DEV_MACHINE_IP>:3033/ws` |
 
 > Ensure Android's `AndroidManifest.xml` includes `<uses-permission android:name="android.permission.INTERNET" />` and `android:usesCleartextTraffic="true"` (for local HTTP testing).
 
@@ -237,7 +237,8 @@ import 'dart:convert';
 
 class PaymentController {
   late Razorpay _razorpay;
-  final String baseUrl = 'http://10.0.2.2:3033/api';
+  // Use live Render URL for real devices/production, or 'http://10.0.2.2:3033/api' for local emulator
+  final String baseUrl = 'https://omw-jout.onrender.com/api';
 
   void initRazorpay() {
     _razorpay = Razorpay();
@@ -312,7 +313,8 @@ import 'dart:convert';
 
 class OMWTrackingService {
   late WebSocketChannel _channel;
-  final String wsUrl = 'ws://10.0.2.2:3033/ws';
+  // Use live Render WSS URL for real devices/production, or 'ws://10.0.2.2:3033/ws' for local emulator
+  final String wsUrl = 'wss://omw-jout.onrender.com/ws';
 
   void connect({
     required Function(Map<String, dynamic>) onLocationReceived,
