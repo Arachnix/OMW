@@ -169,6 +169,14 @@ class SocketService {
       }
     });
   }
+
+  broadcastToUser(userId, message) {
+    this.broadcast({
+      ...message,
+      recipientUserId: userId,
+      timestamp: new Date().toISOString()
+    });
+  }
 }
 
 export const socketService = new SocketService();

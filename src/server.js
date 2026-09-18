@@ -16,6 +16,7 @@ import { isSupabaseLive } from './db/supabaseClient.js';
 
 // Service & Route imports
 import { socketService } from './services/socket/socketService.js';
+import { liquidityDaemon } from './services/escrow/liquidityDaemon.js';
 import mapRoutes from './routes/mapRoutes.js';
 import taskRoutes from './routes/taskRoutes.js';
 import walletRoutes from './routes/walletRoutes.js';
@@ -94,6 +95,9 @@ server.listen(PORT, () => {
   console.log(`💰 Pegged Value:   1 Token = ₹1 INR`);
   console.log(`🗄️ Database Tier:  ${isSupabaseLive() ? 'Supabase PostgreSQL (Live)' : 'Hybrid In-Memory Fallback'}`);
   console.log('====================================================');
+
+  // Start Background Liquidity Daemon
+  liquidityDaemon.start();
 });
 
 export { app, server };

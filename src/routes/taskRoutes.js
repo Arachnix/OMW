@@ -63,7 +63,7 @@ router.post('/calculate-wager', (req, res) => {
  * POST /api/tasks
  * Create a new task (locks 100% tokens in escrow)
  */
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   const {
     title,
     category = 'general',
@@ -99,12 +99,12 @@ router.post('/', (req, res) => {
   };
 
   const finalWager = Number(wager) || 15;
-
   const taskId = `TSK-${Date.now().toString().slice(-4)}`;
+  const now = Date.now();
 
   try {
     // 1. Lock 100% wager into escrow
-    EscrowService.lockRequesterEscrow(requesterId, taskId, finalWager);
+    await EscrowService.lockRequesterEscrow(requesterId, taskId, finalWager);
 
     const newTask = {
       id: taskId,
@@ -128,8 +128,10 @@ router.post('/', (req, res) => {
       pickupOtp: generateOtp(),
       deliveryOtp: generateOtp(),
       runnerStakeLocked: 0,
-      createdAt: new Date().toISOString(),
-      surgeActive: false
+      createdAt: new Date(now).toISOString(),
+      expiresAt: new Date(now + 30 * 60 * 1000).toISOString(), // 30m TTL
+      surgeActive: false,
+      surgeNotified: false
     };
 
     store.saveTask(newTask);
@@ -221,7 +223,7 @@ router.get('/:id', (req, res) => {
  * POST /api/tasks/:id/claim
  * Runner claims task and locks ~25% stake deposit
  */
-router.post('/:id/claim', (req, res) => {
+router.post('/:id/claim', async (req, res) => {
   const { runnerId = 'usr-rohan' } = req.body;
   const task = store.getTask(req.params.id);
 
@@ -248,7 +250,7 @@ router.post('/:id/claim', (req, res) => {
 
   try {
     // Lock runner stake
-    EscrowService.lockRunnerStake(runnerId, task.id, stakeRequired);
+    await EscrowService.lockRunnerStake(runnerId, task.id, stakeRequired);
 
     task.status = 'CLAIMED';
     task.runnerId = runnerId;
@@ -315,7 +317,7 @@ router.post('/:id/verify-pickup', (req, res) => {
  * POST /api/tasks/:id/verify-delivery
  * Requester or Runner verifies Delivery OTP at drop-off; atomically releases tokens
  */
-router.post('/:id/verify-delivery', (req, res) => {
+router.post('/:id/verify-delivery', async (req, res) => {
   const { otp } = req.body;
   const task = store.getTask(req.params.id);
 
@@ -339,7 +341,7 @@ router.post('/:id/verify-delivery', (req, res) => {
 
   try {
     // Release escrow and return stake
-    const escrowResult = EscrowService.releaseEscrowOnDelivery(task);
+    const escrowResult = await EscrowService.releaseEscrowOnDelivery(task);
 
     task.status = 'DELIVERED';
     task.deliveredAt = new Date().toISOString();
@@ -366,7 +368,7 @@ router.post('/:id/verify-delivery', (req, res) => {
  * POST /api/tasks/:id/surge
  * Adds +5 tokens auto-surge prompt or manual boost
  */
-router.post('/:id/surge', (req, res) => {
+router.post('/:id/surge', async (req, res) => {
   const { surgeTokens = 5 } = req.body;
   const task = store.getTask(req.params.id);
 
@@ -383,7 +385,7 @@ router.post('/:id/surge', (req, res) => {
 
   try {
     // Lock additional tokens in escrow
-    EscrowService.lockRequesterEscrow(task.requesterId, task.id, Number(surgeTokens));
+    await EscrowService.lockRequesterEscrow(task.requesterId, task.id, Number(surgeTokens));
 
     task.wager += Number(surgeTokens);
     task.surgeActive = true;
@@ -405,7 +407,7 @@ router.post('/:id/surge', (req, res) => {
  * POST /api/tasks/:id/cancel
  * Cancel open task and refund locked escrow
  */
-router.post('/:id/cancel', (req, res) => {
+router.post('/:id/cancel', async (req, res) => {
   const task = store.getTask(req.params.id);
 
   if (!task) {
@@ -420,7 +422,7 @@ router.post('/:id/cancel', (req, res) => {
   }
 
   try {
-    const refund = EscrowService.refundEscrowOnCancel(task);
+    const refund = await EscrowService.refundEscrowOnCancel(task);
     task.status = 'CANCELLED';
     task.cancelledAt = new Date().toISOString();
     store.saveTask(task);

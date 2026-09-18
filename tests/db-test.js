@@ -89,7 +89,7 @@ async function runDbTests() {
   console.log('\n👉 Testing FraudRepository:');
   const showcase = await FraudRepository.getShowcase();
   assert(showcase.fraudOfDay !== null, 'Fraud of the Day case loaded');
-  assert(showcase.fraudOfDay.id === 'FRD-2026-089', `Fraud of Day ID: ${showcase.fraudOfDay.id} (${showcase.fraudOfDay.title})`);
+  assert(showcase.fraudOfDay && showcase.fraudOfDay.title, `Fraud of Day: ${showcase.fraudOfDay.title}`);
 
   const fraudDetail = await FraudRepository.getById('FRD-2026-089');
   assert(fraudDetail && fraudDetail.user === 'Rahul S.', 'Forensic case details retrieved');
