@@ -1,0 +1,314 @@
+/* ====================================================================
+   OMW — "ON MY WAY" Master Design System & Campus GIS Styling
+   Target Campus: Vellore Institute of Technology (VIT Vellore)
+   ==================================================================== */
+
+:root {
+  --omw-navy: #0f172a;
+  --omw-blue: #2563eb;
+  --omw-teal: #0d9488;
+  --omw-amber: #d97706;
+  --omw-slate: #475569;
+  --omw-charcoal: #1e293b;
+  --omw-light-bg: #f8fafc;
+  --omw-card-border: #e2e8f0;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  color: var(--omw-navy);
+  background-color: var(--omw-light-bg);
+}
+
+/* --------------------------------------------------------------------
+   1. MAP CONTAINER & TILE FILTERS (Zero-API-Key Architecture)
+   -------------------------------------------------------------------- */
+#campusLeafletMap {
+  width: 100%;
+  height: 100%;
+  min-height: 520px;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.1), 0 8px 10px -6px rgba(15, 23, 42, 0.05);
+  background: #0f172a;
+}
+
+/* Night Owl Mode luminosity filter for OpenStreetMap tiles */
+.leaflet-tiles-dark-filter {
+  filter: brightness(0.65) invert(1) contrast(3) hue-rotate(205deg) saturate(0.35);
+}
+
+/* --------------------------------------------------------------------
+   2. CLEAN ZERO-CLUTTER HOVER-ONLY LANDMARK NODES (13px Dots)
+   -------------------------------------------------------------------- */
+.omw-landmark-node {
+  position: relative;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.omw-landmark-dot {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  border: 2px solid #ffffff;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.35);
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s ease;
+}
+
+.omw-landmark-node:hover .omw-landmark-dot {
+  transform: scale(1.4);
+  box-shadow: 0 0 12px rgba(37, 99, 235, 0.6);
+}
+
+/* Floating Hover Badge */
+.omw-landmark-node .landmark-hover-bubble {
+  position: absolute;
+  bottom: 22px;
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  background: rgba(15, 23, 42, 0.94);
+  color: #ffffff;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.2s ease, transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  backdrop-filter: blur(8px);
+}
+
+/* Downward arrow pointer */
+.omw-landmark-node .landmark-hover-bubble::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border-width: 5px;
+  border-style: solid;
+  border-color: rgba(15, 23, 42, 0.94) transparent transparent transparent;
+}
+
+/* Show on hover */
+.omw-landmark-node:hover .landmark-hover-bubble {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* --------------------------------------------------------------------
+   3. ANIMATED RUNNER BEACON & CORRIDOR WAYPOINTS
+   -------------------------------------------------------------------- */
+.omw-runner-marker {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.omw-runner-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  border: 2px solid #ffffff;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  box-shadow: 0 4px 10px rgba(37, 99, 235, 0.4);
+  z-index: 2;
+}
+
+.omw-runner-pulse {
+  position: absolute;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: rgba(37, 99, 235, 0.3);
+  animation: omwPulse 2s infinite ease-out;
+  z-index: 1;
+}
+
+@keyframes omwPulse {
+  0% { transform: scale(0.6); opacity: 0.9; }
+  100% { transform: scale(1.6); opacity: 0; }
+}
+
+/* Route Terminus Markers */
+.omw-terminus-pin {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 3px solid #ffffff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* --------------------------------------------------------------------
+   4. NAVIGATION HUD & TELEMETRY CARD
+   -------------------------------------------------------------------- */
+.omw-tracking-hud {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 12px;
+  background: #ffffff;
+  padding: 16px;
+  border-radius: 14px;
+  border: 1px solid var(--omw-card-border);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+  margin-bottom: 16px;
+}
+
+.omw-hud-metric {
+  display: flex;
+  flex-direction: column;
+}
+
+.omw-hud-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #64748b;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.omw-hud-value {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--omw-navy);
+}
+
+.omw-hud-subtext {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+/* --------------------------------------------------------------------
+   5. TURN-BY-TURN CUE SHEET (6-Stage Navigation Card)
+   -------------------------------------------------------------------- */
+.omw-cue-sheet {
+  background: #ffffff;
+  border-radius: 14px;
+  border: 1px solid var(--omw-card-border);
+  padding: 16px;
+  margin-top: 16px;
+}
+
+.omw-cue-header {
+  font-size: 14px;
+  font-weight: 700;
+  margin-bottom: 12px;
+  color: var(--omw-navy);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.omw-cue-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px;
+  border-radius: 10px;
+  margin-bottom: 6px;
+  transition: background 0.15s ease;
+}
+
+.omw-cue-step.active {
+  background: #eff6ff;
+  border-left: 3px solid #2563eb;
+}
+
+.omw-cue-badge {
+  background: #e2e8f0;
+  color: #334155;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.omw-cue-step.active .omw-cue-badge {
+  background: #2563eb;
+  color: #ffffff;
+}
+
+.omw-cue-info {
+  flex-grow: 1;
+}
+
+.omw-cue-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--omw-navy);
+}
+
+.omw-cue-instruction {
+  font-size: 12px;
+  color: #64748b;
+  margin-top: 2px;
+}
+
+.omw-cue-distance {
+  font-size: 11px;
+  font-weight: 600;
+  color: #2563eb;
+  margin-top: 4px;
+}
+
+/* --------------------------------------------------------------------
+   6. DUAL OTP VERIFICATION DESK
+   -------------------------------------------------------------------- */
+.omw-otp-desk {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.omw-otp-card {
+  background: #ffffff;
+  border-radius: 14px;
+  border: 1px solid var(--omw-card-border);
+  padding: 16px;
+}
+
+.omw-otp-card h4 {
+  margin: 0 0 8px 0;
+  font-size: 13px;
+  color: #475569;
+}
+
+.omw-otp-display {
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: 4px;
+  color: #0f172a;
+  background: #f1f5f9;
+  padding: 8px 14px;
+  border-radius: 8px;
+  display: inline-block;
+  font-family: monospace;
+}

@@ -83,7 +83,8 @@ class SocketService {
     }
   }
 
-  handleRunnerLocationUpdate({ runnerId, lat, lng, speedKmh = 4.5 }) {
+  handleRunnerLocationUpdate(data) {
+    const { runnerId, lat, lng, speedKmh = 4.5, heading = 0, activeTaskId = null } = data;
     if (!runnerId || lat === undefined || lng === undefined) return;
 
     const waypointInfo = findClosestWaypoint([lat, lng], CAMPUS_ROAD_WAYPOINTS);
@@ -99,6 +100,8 @@ class SocketService {
       runnerId,
       coords: [lat, lng],
       speedKmh,
+      heading,
+      activeTaskId,
       closestWaypointIndex: waypointInfo.index,
       progressPercent: waypointInfo.progressPercent,
       activeCue,
@@ -107,11 +110,55 @@ class SocketService {
 
     this.runnerPositions.set(runnerId, locationState);
 
-    // Broadcast location to all clients
+    // 1. Broadcast runner location to all subscribed clients
     this.broadcast({
       type: 'RUNNER_LOCATION_BROADCAST',
       data: locationState
     });
+
+    // 2. Real-Time "En-Route" Intersection matching:
+    // Pushes alert if an OPEN task's pickup node intersects the runner's corridor within 250m
+    try {
+      import('../../data/store.js').then(({ store }) => {
+        const openTasks = store.getAllTasks().filter(t => t.status === 'OPEN');
+        for (const task of openTasks) {
+          if (task.pickupCoords) {
+            const dist = calculateHaversineDistance([lat, lng], task.pickupCoords);
+            if (dist <= 250) {
+              this.broadcastToUser(runnerId, {
+                type: 'EN_ROUTE_TASK_INTERSECT',
+                data: {
+                  taskId: task.id,
+                  title: task.title,
+                  bounty: task.wager,
+                  distanceMeters: dist,
+                  pickupNodeName: task.pickupNodeName,
+                  message: `En-Route Opportunity: Task '${task.title}' intersects your walking path (${dist}m away for ${task.wager} tokens)!`
+                }
+              });
+              break;
+            }
+          }
+        }
+      });
+    } catch (e) {
+      // Ignore in test contexts
+    }
+
+    // 3. Persist milestone telemetry checkpoint to Supabase if live
+    try {
+      import('../../db/supabaseClient.js').then(({ isSupabaseLive, supabase }) => {
+        if (isSupabaseLive() && supabase) {
+          supabase.from('runner_telemetry').insert({
+            runner_id: runnerId,
+            task_id: activeTaskId,
+            coords: [lat, lng],
+            speed_kmh: speedKmh,
+            heading_deg: heading
+          }).then(() => {}).catch(() => {});
+        }
+      });
+    } catch (e) {}
   }
 
   broadcast(messageObj) {

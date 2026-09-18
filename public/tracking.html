@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OMW — Live Campus GIS Navigation & Telemetry (VIT Vellore)</title>
+  
+  <!-- Leaflet CDN Assets (Zero-API-Key Map Stack) -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- OMW Master Styles -->
+  <link rel="stylesheet" href="/assets/styles.css" />
+</head>
+<body style="background: #f8fafc; min-height: 100vh; padding-bottom: 40px;">
+
+  <!-- Main Tracking View Container -->
+  <div id="trackingViewContainer"></div>
+
+  <!-- Client Boot Script -->
+  <script type="module">
+    import { TrackingView } from '/src/views/tracking.js';
+
+    document.addEventListener('DOMContentLoaded', () => {
+      window.trackingApp = new TrackingView('trackingViewContainer', {
+        pickupOtp: '4821',
+        deliveryOtp: '7392'
+      });
+    });
+  </script>
+</body>
+</html>
