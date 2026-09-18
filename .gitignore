@@ -1,0 +1,23 @@
+# Environment & secrets
+.env
+.env.local
+.env.*.local
+*.csv
+*keys*
+*.secret
+
+# Office & temp locks
+~$*.docx
+~$*.xlsx
+*.tmp
+scratch/
+
+# Dependencies & build
+node_modules/
+dist/
+build/
+.cache/
+
+# OS metadata
+.DS_Store
+Thumbs.db
