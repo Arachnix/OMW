@@ -146,7 +146,7 @@ Create a `.env` file in the root directory (do **NOT** commit this file):
 
 ```env
 # Razorpay Test Credentials (Test Mode Only)
-RAZORPAY_KEY_ID=rzp_test_TdUr00Z69QcuAt
+RAZORPAY_KEY_ID=rzp_test_your_key_id_here
 RAZORPAY_KEY_SECRET=your_test_key_secret_here
 
 # Network & Environment

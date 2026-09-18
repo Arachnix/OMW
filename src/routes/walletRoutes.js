@@ -53,22 +53,26 @@ router.get('/transactions', (req, res) => {
 
 /**
  * POST /api/wallet/withdraw
- * Cash-out tokens to UPI or campus voucher (Gazebo/Foody)
+ * Fiat Cashout: Direct payout of earned tokens to UPI / Bank
  */
-router.post('/withdraw', (req, res) => {
+router.post('/withdraw', async (req, res) => {
   const {
     userId = 'usr-rohan',
     tokens,
     method = 'UPI',
-    destination
+    destination,
+    accountNumber,
+    ifsc
   } = req.body;
 
   try {
-    const result = PaymentService.processWithdrawal({
+    const result = await PaymentService.processFiatCashout({
       userId,
       tokens: Number(tokens),
       method,
-      destination
+      destination,
+      accountNumber,
+      ifsc
     });
 
     res.json(result);
