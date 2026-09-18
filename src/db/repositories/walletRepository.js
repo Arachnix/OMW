@@ -17,6 +17,8 @@ export class WalletRepository {
         return {
           userId: data.user_id,
           availableTokens: Number(data.available_tokens),
+          bonusTokens: Number(data.bonus_tokens !== undefined ? data.bonus_tokens : 0),
+          cashableTokens: Number(data.cashable_tokens !== undefined ? data.cashable_tokens : data.available_tokens),
           escrowLocked: Number(data.escrow_locked),
           runnerStaked: Number(data.runner_staked)
         };
@@ -25,20 +27,31 @@ export class WalletRepository {
     return store.getWallet(userId);
   }
 
-  static async updateBalances(userId, { availableTokens, escrowLocked, runnerStaked }) {
+  static async updateBalances(userId, { availableTokens, bonusTokens, cashableTokens, escrowLocked, runnerStaked }) {
     if (isSupabaseLive()) {
       const updatePayload = { updated_at: new Date().toISOString() };
       if (availableTokens !== undefined) updatePayload.available_tokens = availableTokens;
+      if (bonusTokens !== undefined) updatePayload.bonus_tokens = bonusTokens;
+      if (cashableTokens !== undefined) updatePayload.cashable_tokens = cashableTokens;
       if (escrowLocked !== undefined) updatePayload.escrow_locked = escrowLocked;
       if (runnerStaked !== undefined) updatePayload.runner_staked = runnerStaked;
 
-      await supabase
+      const { error } = await supabase
         .from('wallets')
         .update(updatePayload)
         .eq('user_id', userId);
+
+      if (error && error.message.includes('column')) {
+        const safePayload = { ...updatePayload };
+        delete safePayload.bonus_tokens;
+        delete safePayload.cashable_tokens;
+        await supabase.from('wallets').update(safePayload).eq('user_id', userId);
+      }
     }
     const wallet = store.getWallet(userId);
     if (availableTokens !== undefined) wallet.availableTokens = availableTokens;
+    if (bonusTokens !== undefined) wallet.bonusTokens = bonusTokens;
+    if (cashableTokens !== undefined) wallet.cashableTokens = cashableTokens;
     if (escrowLocked !== undefined) wallet.escrowLocked = escrowLocked;
     if (runnerStaked !== undefined) wallet.runnerStaked = runnerStaked;
     return wallet;

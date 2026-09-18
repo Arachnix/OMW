@@ -25,11 +25,14 @@ router.get('/balance', (req, res) => {
     userName: user ? user.name : 'Student',
     wallet: {
       availableTokens: wallet.availableTokens,
+      bonusTokens: wallet.bonusTokens || 0,
+      cashableTokens: wallet.cashableTokens !== undefined ? wallet.cashableTokens : wallet.availableTokens,
       escrowLocked: wallet.escrowLocked,
       runnerStaked: wallet.runnerStaked,
       totalNetTokens: totalTokens,
       exchangeRateInrPerToken: TOKEN_EXCHANGE_RATE,
-      totalValueInr: totalTokens * TOKEN_EXCHANGE_RATE
+      totalValueInr: totalTokens * TOKEN_EXCHANGE_RATE,
+      cashableValueInr: (wallet.cashableTokens !== undefined ? wallet.cashableTokens : wallet.availableTokens) * TOKEN_EXCHANGE_RATE
     }
   });
 });

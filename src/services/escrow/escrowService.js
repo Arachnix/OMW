@@ -17,6 +17,12 @@ export class EscrowService {
       throw new Error(`Insufficient tokens. Available: ${wallet.availableTokens}, Required: ${amount}`);
     }
 
+    // Prioritize consuming non-cashable promotional airdrop tokens first!
+    const bonusDeduction = Math.min(wallet.bonusTokens || 0, amount);
+    const cashableDeduction = amount - bonusDeduction;
+
+    wallet.bonusTokens = Math.max(0, (wallet.bonusTokens || 0) - bonusDeduction);
+    wallet.cashableTokens = Math.max(0, (wallet.cashableTokens || 0) - cashableDeduction);
     wallet.availableTokens -= amount;
     wallet.escrowLocked += amount;
 
@@ -24,6 +30,8 @@ export class EscrowService {
     if (isSupabaseLive()) {
       await WalletRepository.updateBalances(userId, {
         availableTokens: wallet.availableTokens,
+        bonusTokens: wallet.bonusTokens,
+        cashableTokens: wallet.cashableTokens,
         escrowLocked: wallet.escrowLocked
       });
     }
@@ -42,6 +50,10 @@ export class EscrowService {
       transactionId: tx.id,
       lockedAmount: amount
     };
+  }
+
+  static async lockTaskEscrow(userId, taskId, amount) {
+    return this.lockRequesterEscrow(userId, taskId, amount);
   }
 
   /**
@@ -81,7 +93,8 @@ export class EscrowService {
   }
 
   /**
-   * Atomically releases task bounty and runner stake upon Delivery OTP verification
+   * Atomically releases task bounty and runner stake upon Delivery OTP verification.
+   * Transferred bounty converts to earned, cashable tokens for the runner!
    */
   static async releaseEscrowOnDelivery(task) {
     const requesterWallet = store.getWallet(task.requesterId);
@@ -90,12 +103,14 @@ export class EscrowService {
     // 1. Release requester escrow
     requesterWallet.escrowLocked = Math.max(0, requesterWallet.escrowLocked - task.wager);
 
-    // 2. Transfer bounty tokens to runner
+    // 2. Transfer bounty tokens to runner (Cashable earned earnings)
     runnerWallet.availableTokens += task.wager;
+    runnerWallet.cashableTokens = (runnerWallet.cashableTokens || 0) + task.wager;
 
     // 3. Return runner's commitment deposit stake
     runnerWallet.runnerStaked = Math.max(0, runnerWallet.runnerStaked - task.runnerStakeLocked);
     runnerWallet.availableTokens += task.runnerStakeLocked;
+    runnerWallet.cashableTokens = (runnerWallet.cashableTokens || 0) + task.runnerStakeLocked;
 
     // Sync with Supabase if live
     if (isSupabaseLive()) {
@@ -105,6 +120,7 @@ export class EscrowService {
         }),
         WalletRepository.updateBalances(task.runnerId, {
           availableTokens: runnerWallet.availableTokens,
+          cashableTokens: runnerWallet.cashableTokens,
           runnerStaked: runnerWallet.runnerStaked
         })
       ]);

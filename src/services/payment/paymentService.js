@@ -116,11 +116,13 @@ export class PaymentService {
     // 1. Update in-memory store
     const wallet = store.getWallet(userId);
     wallet.availableTokens += tokensToCredit;
+    wallet.cashableTokens = (wallet.cashableTokens || 0) + tokensToCredit;
 
     // 2. Persist in Supabase if live
     if (isSupabaseLive()) {
       await WalletRepository.updateBalances(userId, {
-        availableTokens: wallet.availableTokens
+        availableTokens: wallet.availableTokens,
+        cashableTokens: wallet.cashableTokens
       });
     }
 
@@ -140,6 +142,7 @@ export class PaymentService {
       success: true,
       creditedTokens: tokensToCredit,
       newAvailableBalance: wallet.availableTokens,
+      cashableBalance: wallet.cashableTokens,
       transactionId: tx.id,
       inrCharged: amountInr,
       paymentId,
@@ -150,6 +153,7 @@ export class PaymentService {
   /**
    * Fiat Cashout: Redeems runner tokens directly to Fiat (UPI or Bank Account)
    * Enforces fiat-only cashouts, verifies anti-fraud restrictions, and logs audit trail.
+   * STRICTLY PREVENTS CASHOUT OF PROMOTIONAL AIRDROP TOKENS.
    */
   static async processFiatCashout({
     userId,
@@ -169,8 +173,15 @@ export class PaymentService {
       throw new Error('Account restricted: You cannot withdraw funds while a TrustShield restriction is active');
     }
 
-    // Check wallet balance
+    // Check wallet balance and non-cashable promotional airdrop rule
     const wallet = store.getWallet(userId);
+    const cashable = wallet.cashableTokens !== undefined ? wallet.cashableTokens : wallet.availableTokens;
+    const bonus = wallet.bonusTokens || 0;
+
+    if (tokens > cashable) {
+      throw new Error(`Cannot cash out promotional tokens. Only earned/purchased tokens can be withdrawn. Requested: ${tokens}, Cashable: ${cashable} (Promotional Airdrop Balance: ${bonus})`);
+    }
+
     if (wallet.availableTokens < tokens) {
       throw new Error(`Insufficient tokens for cashout. Available: ${wallet.availableTokens}, Requested: ${tokens}`);
     }
@@ -181,11 +192,14 @@ export class PaymentService {
 
     // Deduct tokens
     wallet.availableTokens -= tokens;
+    wallet.cashableTokens = Math.max(0, cashable - tokens);
 
     // Sync to Supabase if live
     if (isSupabaseLive()) {
       await WalletRepository.updateBalances(userId, {
-        availableTokens: wallet.availableTokens
+        availableTokens: wallet.availableTokens,
+        cashableTokens: wallet.cashableTokens,
+        bonusTokens: wallet.bonusTokens || 0
       });
     }
 

@@ -18,6 +18,9 @@ class DataStore {
       ['usr-rohit', {
         id: 'usr-rohit',
         name: 'Rohit Verma',
+        email: 'rohit.verma2024@vitstudent.ac.in',
+        admissionYear: 2024,
+        academicStanding: '3rd Year (Junior)',
         regNumber: '22BCE1142',
         regHash: '22BCE****',
         hostelBlock: 'Q Block',
@@ -29,6 +32,9 @@ class DataStore {
       ['usr-rohan', {
         id: 'usr-rohan',
         name: 'Rohan Mehta',
+        email: 'rohan.mehta2025@vitstudent.ac.in',
+        admissionYear: 2025,
+        academicStanding: '2nd Year (Sophomore)',
         regNumber: '22BEE0819',
         regHash: '22BEE****',
         hostelBlock: 'P Block',
@@ -40,6 +46,9 @@ class DataStore {
       ['usr-rahul', {
         id: 'usr-rahul',
         name: 'Rahul S.',
+        email: 'rahul.s2024@vitstudent.ac.in',
+        admissionYear: 2024,
+        academicStanding: '3rd Year (Junior)',
         regNumber: '22BCE0089',
         regHash: '22BCE****',
         hostelBlock: 'Q Block',
@@ -52,6 +61,9 @@ class DataStore {
       ['usr-proctor', {
         id: 'usr-proctor',
         name: 'Student Proctor Ops',
+        email: 'proctor.ops@vitstudent.ac.in',
+        admissionYear: 2022,
+        academicStanding: 'Campus Proctor / Administrator',
         regNumber: 'PROCTOR-01',
         regHash: 'ADMIN****',
         hostelBlock: 'Main Building',
@@ -62,29 +74,37 @@ class DataStore {
       }]
     ]);
 
-    // Seeded Wallets (Token Balances)
+    // Seeded Wallets (Token Balances: bonusTokens non-cashable + cashableTokens)
     this.wallets = new Map([
       ['usr-rohit', {
         userId: 'usr-rohit',
         availableTokens: 85,
+        bonusTokens: 0,
+        cashableTokens: 85,
         escrowLocked: 0,
         runnerStaked: 0
       }],
       ['usr-rohan', {
         userId: 'usr-rohan',
         availableTokens: 140,
+        bonusTokens: 0,
+        cashableTokens: 140,
         escrowLocked: 0,
         runnerStaked: 0
       }],
       ['usr-rahul', {
         userId: 'usr-rahul',
         availableTokens: 0,
+        bonusTokens: 0,
+        cashableTokens: 0,
         escrowLocked: 0,
         runnerStaked: 0
       }],
       ['usr-proctor', {
         userId: 'usr-proctor',
         availableTokens: 1000,
+        bonusTokens: 0,
+        cashableTokens: 1000,
         escrowLocked: 0,
         runnerStaked: 0
       }]
@@ -206,22 +226,45 @@ class DataStore {
   }
 
   findUserByReg(regNumber) {
+    if (!regNumber) return null;
     const clean = regNumber.trim().toUpperCase();
     for (const user of this.users.values()) {
-      if (user.regNumber.toUpperCase() === clean) return user;
+      if (user.regNumber && user.regNumber.toUpperCase() === clean) return user;
     }
     return null;
   }
 
-  createUser(userData) {
+  findUserByEmail(email) {
+    if (!email) return null;
+    const clean = email.trim().toLowerCase();
+    for (const user of this.users.values()) {
+      if (user.email && user.email.toLowerCase() === clean) return user;
+    }
+    return null;
+  }
+
+  createUser(userData, initialBonusTokens = 20) {
     this.users.set(userData.id, userData);
     if (!this.wallets.has(userData.id)) {
       this.wallets.set(userData.id, {
         userId: userData.id,
-        availableTokens: 50, // Welcome signup bonus tokens
+        availableTokens: initialBonusTokens,
+        bonusTokens: initialBonusTokens, // 20 promotional non-cashable tokens
+        cashableTokens: 0,
         escrowLocked: 0,
         runnerStaked: 0
       });
+
+      if (initialBonusTokens > 0) {
+        this.addTransaction({
+          userId: userData.id,
+          type: 'AIRDROP_BONUS',
+          tokens: initialBonusTokens,
+          amountInr: initialBonusTokens,
+          reference: 'VIT Student Welcome Airdrop (20 Non-Cashable Gig Tokens)',
+          status: 'COMPLETED'
+        });
+      }
     }
     if (isSupabaseLive()) {
       UserRepository.create(userData).catch(err => console.error('[Supabase User Sync Error]:', err.message));
@@ -234,12 +277,17 @@ class DataStore {
     if (!this.wallets.has(userId)) {
       this.wallets.set(userId, {
         userId,
-        availableTokens: 50,
+        availableTokens: 20,
+        bonusTokens: 20,
+        cashableTokens: 0,
         escrowLocked: 0,
         runnerStaked: 0
       });
     }
-    return this.wallets.get(userId);
+    const w = this.wallets.get(userId);
+    if (w.bonusTokens === undefined) w.bonusTokens = 0;
+    if (w.cashableTokens === undefined) w.cashableTokens = w.availableTokens;
+    return w;
   }
 
   addTransaction(tx) {

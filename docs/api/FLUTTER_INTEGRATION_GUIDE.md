@@ -31,22 +31,74 @@ All endpoints return a standardized JSON envelope:
 ```
 
 ### A. Authentication & Profiles
-- **Mock Student Login:** `POST /api/auth/login`
-  ```json
-  // Request Body
-  {
-    "regNumber": "22BCE1142",
-    "name": "Rohit Verma",
-    "hostelBlock": "Q Block"
+
+#### 1. Official Google OAuth for VIT Students: `POST /api/auth/google`
+- Accepts Google ID Token and student details.
+- Strictly validates `@vitstudent.ac.in` domain.
+- Automatically extracts `firstName`, `lastName`, `admissionYear` (e.g., `2025`), and `academicStanding` (e.g., `2nd Year (Sophomore)`).
+- **New accounts receive an instant 20-Token Welcome Airdrop** to fund their first campus gigs!
+```json
+// Request Body
+{
+  "idToken": "google_oauth_id_token_here",
+  "email": "vismay.shrouty2025@vitstudent.ac.in",
+  "name": "Vismay Shrouty",
+  "hostelBlock": "Q Block" // Optional
+}
+
+// Response Body (New Student Registration)
+{
+  "success": true,
+  "isNewUser": true,
+  "message": "Welcome to OMW! 20 promotional tokens have been airdropped to your wallet.",
+  "user": {
+    "id": "usr-8812",
+    "name": "Vismay Shrouty",
+    "email": "vismay.shrouty2025@vitstudent.ac.in",
+    "admissionYear": 2025,
+    "academicStanding": "2nd Year (Sophomore)",
+    "regNumber": "25BCE4912",
+    "regHash": "25BCE****",
+    "hostelBlock": "Q Block",
+    "trustScore": 5.0
+  },
+  "airdrop": {
+    "tokens": 20,
+    "type": "WELCOME_AIRDROP",
+    "isCashable": false,
+    "description": "20 non-cashable promotional tokens to fund your initial campus microgigs"
+  },
+  "token": "omw_jwt_google_usr-8812",
+  "wallet": {
+    "availableTokens": 20,
+    "bonusTokens": 20,
+    "cashableTokens": 0,
+    "escrowLocked": 0,
+    "runnerStaked": 0
   }
-  // Response Body
-  {
-    "success": true,
-    "user": { "id": "usr-rohit", "name": "Rohit Verma", "trustScore": 5.0 },
-    "token": "omw_jwt_mock_usr-rohit",
-    "wallet": { "availableTokens": 85, "escrowLocked": 0, "runnerStaked": 0 }
-  }
-  ```
+}
+```
+
+#### 2. Instant Email Domain & Batch Validator: `POST /api/auth/vit-verify`
+Use this endpoint to instantly preview the student's name and academic standing in the Flutter UI as they type their email:
+```json
+// Request Body
+{ "email": "vismay.shrouty2025@vitstudent.ac.in" }
+
+// Response Body
+{
+  "success": true,
+  "isValidVit": true,
+  "firstName": "Vismay",
+  "lastName": "Shrouty",
+  "fullName": "Vismay Shrouty",
+  "admissionYear": 2025,
+  "academicStanding": "2nd Year (Sophomore)",
+  "academicYearNumber": 2
+}
+```
+
+#### 3. Legacy/Dev Login: `POST /api/auth/login`
 - **Current User Profile & Wallet:** `GET /api/users/me?userId=usr-rohit`
 - **Student Public Trust Profile:** `GET /api/users/:id`
 
@@ -228,7 +280,61 @@ In Flutter, use `web_socket_channel` to stream live GPS location and receive tas
 
 ## 4. Flutter Dart Code Examples
 
-### A. Razorpay Integration in Flutter (`razorpay_flutter`)
+### A. Google Sign-In with VIT Domain Check (`google_sign_in`)
+
+```dart
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+
+class AuthController {
+  final GoogleSignIn _googleSignIn = GoogleSignIn(
+    scopes: ['email', 'profile'],
+    hostedDomain: 'vitstudent.ac.in', // Restricts account chooser to VIT emails!
+  );
+
+  final String baseUrl = 'https://omw-jout.onrender.com/api';
+
+  Future<Map<String, dynamic>?> signInWithVITGoogle() async {
+    try {
+      final GoogleSignInAccount? account = await _googleSignIn.signIn();
+      if (account == null) return null; // User cancelled
+
+      // 1. Client-side Domain Guard
+      if (!account.email.endsWith('@vitstudent.ac.in')) {
+        await _googleSignIn.signOut();
+        throw Exception('Only @vitstudent.ac.in emails are permitted.');
+      }
+
+      final GoogleSignInAuthentication auth = await account.authentication;
+
+      // 2. Exchange token with OMW Server & collect 20 Welcome Airdrop Tokens!
+      final response = await http.post(
+        Uri.parse('$baseUrl/auth/google'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'idToken': auth.idToken ?? 'dev_mock_token',
+          'email': account.email,
+          'name': account.displayName,
+        }),
+      );
+
+      final data = jsonDecode(response.body);
+      if (!data['success']) throw Exception(data['error']);
+
+      // 3. User authenticated! data contains user profile, token, and wallet
+      print('Logged in: ${data['user']['name']} (${data['user']['academicStanding']})');
+      print('Available Tokens: ${data['wallet']['availableTokens']}');
+      return data;
+    } catch (e) {
+      print('Sign In Error: $e');
+      rethrow;
+    }
+  }
+}
+```
+
+### B. Razorpay Integration in Flutter (`razorpay_flutter`)
 
 ```dart
 import 'package:razorpay_flutter/razorpay_flutter.dart';
@@ -305,7 +411,7 @@ class PaymentController {
 
 ---
 
-### B. WebSocket Telemetry Stream in Flutter (`web_socket_channel`)
+### C. WebSocket Telemetry Stream in Flutter (`web_socket_channel`)
 
 ```dart
 import 'package:web_socket_channel/web_socket_channel.dart';
@@ -364,7 +470,7 @@ class OMWTrackingService {
 
 ---
 
-### C. Map Coordinate Conversion for `flutter_map` or `google_maps_flutter`
+### D. Map Coordinate Conversion for `flutter_map` or `google_maps_flutter`
 
 All location coordinates are standard `[lat, lng]` floating point arrays:
 ```dart
