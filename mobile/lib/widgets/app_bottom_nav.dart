@@ -15,7 +15,7 @@ class NavDestination {
   /// Figma SVG path (preferred).
   final String? icon;
 
-  /// Material stand-in for icons not exported from Figma yet (`AppGlyphs`).
+  /// Material icon, for callers without an SVG.
   final IconData? glyph;
   final String label;
   final int badge;
@@ -39,6 +39,7 @@ class AppBottomNav extends StatelessWidget {
     required this.selectedIndex,
     required this.onSelected,
     this.indicator = NavIndicator.underline,
+    this.topRule = false,
   });
 
   final List<NavDestination> destinations;
@@ -46,10 +47,18 @@ class AppBottomNav extends StatelessWidget {
   final ValueChanged<int> onSelected;
   final NavIndicator indicator;
 
+  /// 1.5px ink rule above the bar (wallet / account / runner-feed frames).
+  final bool topRule;
+
   @override
   Widget build(BuildContext context) {
     return Material(
       color: AppColors.surface,
+      shape: topRule
+          ? const Border(
+              top: BorderSide(color: AppColors.ink, width: AppRadii.stroke),
+            )
+          : null,
       child: SafeArea(
         top: false,
         child: Padding(

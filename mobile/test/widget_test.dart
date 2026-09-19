@@ -4,16 +4,22 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 
 import 'package:omw_delivery/main.dart';
+import 'package:omw_delivery/models/omw_models.dart';
 import 'package:omw_delivery/models/order_model.dart';
+import 'package:omw_delivery/screens/runner/delivery_code_screen.dart';
 import 'package:omw_delivery/screens/splash_screen.dart';
+import 'package:omw_delivery/screens/wallet/withdraw_screen.dart';
 import 'package:omw_delivery/state/app_state.dart';
+import 'package:omw_delivery/state/session_store.dart';
+
+import 'fake_api.dart';
 
 Widget _app(AppState state) =>
     ChangeNotifierProvider.value(value: state, child: const OmwApp());
 
-/// Loads the bundled Inter weights so layout matches the device.
-Future<void> _loadInter() async {
-  final loader = FontLoader('Inter');
+/// Loads the bundled fonts so layout matches the device.
+Future<void> _loadFonts() async {
+  final inter = FontLoader('Inter');
   for (final w in [
     'Regular',
     'Medium',
@@ -22,282 +28,300 @@ Future<void> _loadInter() async {
     'ExtraBold',
     'Black',
   ]) {
-    loader.addFont(rootBundle.load('assets/fonts/inter/Inter-$w.ttf'));
+    inter.addFont(rootBundle.load('assets/fonts/inter/Inter-$w.ttf'));
   }
-  await loader.load();
+  await inter.load();
+  await (FontLoader('ArchivoBlack')..addFont(
+        rootBundle.load('assets/fonts/archivo_black/ArchivoBlack-Regular.ttf'),
+      ))
+      .load();
 }
 
-/// Figma frames are 375pt wide; test on a comparable phone viewport.
-void _usePhoneViewport(WidgetTester tester) {
-  tester.view.physicalSize = const Size(375 * 3, 812 * 3);
+void _phone(WidgetTester tester) {
+  tester.view.physicalSize = const Size(390 * 3, 844 * 3);
   tester.view.devicePixelRatio = 3;
   addTearDown(tester.view.reset);
 }
 
-void main() {
-  setUpAll(_loadInter);
+/// Signs in against the fake API and enters [role].
+Future<(AppState, FakeOmwApi)> _signedIn(
+  WidgetTester tester, {
+  AppRole role = AppRole.sender,
+  FakeOmwApi? api,
+}) async {
+  final fake = api ?? FakeOmwApi();
+  final state = AppState(
+    api: fake,
+    session: MemorySessionStore(),
+    initialStage: AppStage.signIn,
+  );
+  await state.signIn('vismay.shrouty@vitstudent.ac.in');
+  await state.loadLocations();
+  state.enterAs(role);
+  await tester.pumpWidget(_app(state));
+  await tester.pumpAndSettle();
+  return (state, fake);
+}
 
-  testWidgets('splash falls back to the still wordmark and advances', (
+void main() {
+  setUpAll(_loadFonts);
+
+  testWidgets('splash advances to sign-in without a saved session', (
     tester,
   ) async {
-    _usePhoneViewport(tester);
-    final state = AppState();
+    _phone(tester);
+    final state = AppState(api: FakeOmwApi(), session: MemorySessionStore());
+    await state.restoreSession();
     await tester.pumpWidget(_app(state));
     await tester.pump(SplashScreen.maxDuration);
     await tester.pumpAndSettle();
-
     expect(state.stage, AppStage.signIn);
     expect(find.text('Create an account'), findsOneWidget);
   });
 
-  testWidgets('email sign-in validates and opens the landing', (tester) async {
-    _usePhoneViewport(tester);
-    final state = AppState(initialStage: AppStage.signIn);
+  testWidgets('email sign-in validates, then logs in to the backend', (
+    tester,
+  ) async {
+    _phone(tester);
+    final state = AppState(
+      api: FakeOmwApi(),
+      session: MemorySessionStore(),
+      initialStage: AppStage.signIn,
+    );
     await tester.pumpWidget(_app(state));
     await tester.pumpAndSettle();
 
-    await tester.enterText(find.byType(TextFormField), 'not-an-email');
+    await tester.enterText(find.byType(TextFormField), 'nope');
     await tester.tap(find.text('Continue'));
     await tester.pumpAndSettle();
     expect(find.text('Enter a valid email address'), findsOneWidget);
-    expect(state.stage, AppStage.signIn);
 
-    await tester.enterText(find.byType(TextFormField), 'rohan@omw.app');
+    await tester.enterText(
+      find.byType(TextFormField),
+      'vismay.shrouty22@vitstudent.ac.in',
+    );
     await tester.tap(find.text('Continue'));
     await tester.pumpAndSettle();
-
     expect(state.stage, AppStage.landing);
-    expect(find.text('OnMyWay'), findsOneWidget);
+    expect(state.user?.name, 'Vismay Shrouty');
     expect(find.text('GOOD FOOD. LESS WAIT.'), findsOneWidget);
   });
 
-  testWidgets('landing routes to both shells and back', (tester) async {
-    _usePhoneViewport(tester);
-    final state = AppState(initialStage: AppStage.signIn)..signIn('a@b.co');
-    await tester.pumpWidget(_app(state));
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.text('ORDER'));
-    await tester.pumpAndSettle();
-    expect(state.role, AppRole.sender);
+  testWidgets('sender broadcasts a request; escrow locks the offer', (
+    tester,
+  ) async {
+    _phone(tester);
+    final (state, fake) = await _signedIn(tester);
     expect(find.text('FAST COURIER MATCH'), findsOneWidget);
-    expect(find.text('Delivery source'), findsOneWidget);
+    expect(find.text('~8 mins'), findsOneWidget); // walk 6 + queue 2
 
-    await tester.tap(find.byTooltip('OnMyWay home'));
-    await tester.pumpAndSettle();
-    expect(state.stage, AppStage.landing);
-
-    await tester.tap(find.text('DELIVER'));
-    await tester.pumpAndSettle();
-    expect(state.role, AppRole.courier);
-    expect(find.text('All Deliveries'), findsOneWidget);
-
-    await tester.tap(find.byTooltip('OnMyWay home'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Orders'));
-    await tester.pumpAndSettle();
-    expect(state.senderTab, SenderTab.activity);
-    expect(find.text('Your deliveries'), findsOneWidget);
-  });
-
-  testWidgets('offer price edits inline and delivery sources toggle', (
-    tester,
-  ) async {
-    _usePhoneViewport(tester);
-    final state = AppState(initialStage: AppStage.signIn)
-      ..signIn('a@b.co')
-      ..enterAs(AppRole.sender);
-    await tester.pumpWidget(_app(state));
-    await tester.pumpAndSettle();
-
-    final price = find.widgetWithText(TextField, '120');
-    await tester.enterText(price, '10');
-    await tester.testTextInput.receiveAction(TextInputAction.done);
-    await tester.pumpAndSettle();
-    expect(find.text('Minimum offer is ₹30'), findsOneWidget);
-    expect(state.offer, 120);
-
-    await tester.enterText(find.byType(TextField).first, '175');
-    await tester.testTextInput.receiveAction(TextInputAction.done);
-    await tester.pumpAndSettle();
-    expect(state.offer, 175);
-
-    final quick = find.text('Quick Commerce');
-    await tester.scrollUntilVisible(
-      quick,
-      200,
-      scrollable: find.byType(Scrollable).first,
-    );
-    await tester.tap(quick);
-    await tester.pumpAndSettle();
-    expect(state.sources, {DeliverySource.quickCommerce});
-
-    await tester.tap(find.text('Delivery source'));
-    await tester.pumpAndSettle();
-    expect(find.text('Quick Commerce'), findsNothing);
-  });
-
-  testWidgets('sender picks parcel, offer validates, and broadcasts', (
-    tester,
-  ) async {
-    _usePhoneViewport(tester);
-    final state = AppState(initialStage: AppStage.signIn)
-      ..signIn('a@b.co')
-      ..enterAs(AppRole.sender);
-    await tester.pumpWidget(_app(state));
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.text('Medium Box'));
-    await tester.pumpAndSettle();
-    expect(state.parcel, ParcelType.medium);
-    expect(state.offer, ParcelType.medium.suggestedFare);
-
-    expect(state.setOffer('10'), isNotNull);
-    expect(state.setOffer('150'), isNull);
-    await tester.pumpAndSettle();
-    final cta = find.text('Broadcast Delivery Request for ₹150');
+    final cta = find.text('Broadcast Delivery Request for ₹20');
     await tester.scrollUntilVisible(
       cta,
       200,
       scrollable: find.byType(Scrollable).first,
     );
-    expect(cta, findsOneWidget);
     await tester.ensureVisible(cta);
     await tester.pumpAndSettle();
-
-    final before = state.history.length;
     await tester.tap(cta);
-    await tester.pump(const Duration(milliseconds: 700));
     await tester.pumpAndSettle();
-    expect(state.history.length, before + 1);
+
     expect(find.text('Request broadcast'), findsOneWidget);
+    expect(state.myRequests, hasLength(1));
+    expect(fake.escrow, 20);
 
     await tester.tap(find.text('View activity'));
     await tester.pumpAndSettle();
-    expect(state.senderTab, SenderTab.activity);
-    expect(find.text('Your deliveries'), findsOneWidget);
+    expect(find.text('Pending Orders'), findsOneWidget);
+    expect(find.text('Waiting for courier..'), findsOneWidget);
   });
 
-  testWidgets('courier feed filters and accepts requests', (tester) async {
-    _usePhoneViewport(tester);
-    final state = AppState(initialStage: AppStage.signIn)
-      ..signIn('a@b.co')
-      ..enterAs(AppRole.courier);
-    await tester.pumpWidget(_app(state));
-    await tester.pumpAndSettle();
-
-    expect(find.text('All Deliveries'), findsOneWidget);
-    expect(find.text('REQUEST FOR MATCH'), findsWidgets);
-    expect(find.text('SLIGHT DETOUR'), findsWidgets);
-
-    // Compact detour card accepts too.
-    final detour = state.visibleFeed.firstWhere((r) => r.isDetour);
-    await tester.tap(find.text('ACCEPT').first);
-    await tester.pumpAndSettle();
-    expect(state.accepted.first.id, detour.id);
-    // Courier confirmation sheet; not the sender's own order, so no notice.
-    expect(find.text('Delivery Accepted!'), findsOneWidget);
-    expect(state.pendingNotice, isNull);
-    await tester.tap(find.text('Back to Feed'));
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.text('High Fare (>150)'));
-    await tester.pumpAndSettle();
-    expect(state.visibleFeed.every((r) => r.fare > 150), isTrue);
-
-    final first = state.visibleFeed.first;
-    final accept = find.text('Accept Delivery Request for ₹${first.fare}');
-    // Last Scrollable is the vertical feed (the first is the pill row).
+  testWidgets('insufficient tokens offers to buy more', (tester) async {
+    _phone(tester);
+    await _signedIn(tester, api: FakeOmwApi(available: 5));
+    final cta = find.text('Broadcast Delivery Request for ₹20');
     await tester.scrollUntilVisible(
-      accept,
+      cta,
       200,
-      scrollable: find.byType(Scrollable).last,
+      scrollable: find.byType(Scrollable).first,
     );
-    await tester.tap(accept);
+    await tester.ensureVisible(cta);
     await tester.pumpAndSettle();
-    expect(state.accepted.first.id, first.id);
-    expect(state.visibleFeed.any((r) => r.id == first.id), isFalse);
+    await tester.tap(cta);
+    await tester.pumpAndSettle();
+    expect(find.text('Not enough tokens'), findsOneWidget);
   });
 
-  testWidgets('courier accept notifies the sender; tracking and dismiss', (
+  testWidgets('live claim shows "Order Accepted!" and tracking', (
     tester,
   ) async {
-    _usePhoneViewport(tester);
-    final state = AppState(initialStage: AppStage.signIn)
-      ..signIn('a@b.co')
-      ..enterAs(AppRole.sender);
-    // Real timers: broadcast() waits 600 ms.
-    final mine = await tester.runAsync(state.broadcast);
-    state.enterAs(AppRole.courier);
-    await tester.pumpWidget(_app(state));
+    _phone(tester);
+    final (state, fake) = await _signedIn(tester);
+    final task = await state.broadcast();
     await tester.pumpAndSettle();
 
-    // Courier accepts the sender's request (top of the feed).
-    // The sender's request is newest, so it is first in the feed.
-    await tester.tap(
-      find.text('Accept Delivery Request for ₹${mine!.fare}').first,
-    );
-    await tester.pumpAndSettle();
-    expect(find.text('Delivery Accepted!'), findsOneWidget);
-    expect(
-      find.text('Head to pickup. The sender has been notified.'),
-      findsOneWidget,
-    );
-    await tester.tap(find.text('Back to Feed'));
-    await tester.pumpAndSettle();
-
-    // Sender sees "Order Accepted!" as soon as the sender shell shows.
-    state.enterAs(AppRole.sender);
+    fake.pushStatus(task.id, 'CLAIMED');
     await tester.pumpAndSettle();
     expect(find.text('Order Accepted!'), findsOneWidget);
-    expect(find.text('ORDER #${mine.id}'), findsOneWidget);
+    expect(
+      find.text('Pickup partner Marcus Vance is on the way.'),
+      findsOneWidget,
+    );
 
     await tester.tap(find.text('View Live Tracking'));
     await tester.pumpAndSettle();
-    expect(state.pendingNotice, isNull);
     expect(find.text('On the way to Pickup'), findsOneWidget);
-    expect(find.text('Order ID: #${mine.id}'), findsOneWidget);
-
-    await tester.tap(find.text('View Order Details'));
-    await tester.pumpAndSettle();
-    expect(state.senderTab, SenderTab.activity);
-    expect(find.text('On the way to Pickup'), findsNothing);
+    expect(find.text('Order ID: #${task.id}'), findsOneWidget);
+    expect(state.pendingNotice, isNull);
   });
 
-  testWidgets('courier cancel shows Order Cancelled; dismiss by scrim', (
+  testWidgets('courier accepts from the feed and confirms pickup', (
     tester,
   ) async {
-    _usePhoneViewport(tester);
-    final state = AppState(initialStage: AppStage.signIn)
-      ..signIn('a@b.co')
-      ..enterAs(AppRole.sender);
-    // Real timers: broadcast() waits 600 ms.
-    final mine = await tester.runAsync(state.broadcast);
-    state.enterAs(AppRole.courier);
-    await tester.pumpWidget(_app(state));
-    await tester.pumpAndSettle();
-
-    // The sender's request is newest, so it is first in the feed.
-    await tester.tap(
-      find.text('Accept Delivery Request for ₹${mine!.fare}').first,
+    _phone(tester);
+    final fake = FakeOmwApi();
+    fake.seedOpenTask();
+    final (state, _) = await _signedIn(
+      tester,
+      role: AppRole.courier,
+      api: fake,
     );
+    await state.refreshFeed();
+    state.setFilter(RunnerFilter.all);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Cancel Job'));
-    await tester.pumpAndSettle();
-    expect(state.accepted, isEmpty);
-    expect(state.visibleFeed.first.id, mine.id);
 
-    state.enterAs(AppRole.sender);
+    expect(find.text('Runner Mode'), findsOneWidget);
+    final accept = find.text('ACCEPT').first;
+    await tester.scrollUntilVisible(
+      accept,
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(accept);
     await tester.pumpAndSettle();
-    // The stale "accepted" notice was replaced by the cancellation.
-    expect(find.text('Order Accepted!'), findsNothing);
-    expect(find.text('Order Cancelled'), findsOneWidget);
-    expect(find.text('Courier vehicle issue / flat tire'), findsOneWidget);
+    expect(find.text('Delivery Accepted!'), findsOneWidget);
+    expect(fake.staked, 8); // 25% of 30
 
-    // Tap the dimmed overlay above the sheet to dismiss.
-    await tester.tapAt(const Offset(187, 40));
+    await tester.tap(find.text('Start Delivery'));
     await tester.pumpAndSettle();
-    expect(find.text('Order Cancelled'), findsNothing);
-    expect(state.pendingNotice, isNull);
+    expect(state.courierTab, CourierTab.activity);
+    await tester.tap(find.text('Confirm Pickup'));
+    await tester.pumpAndSettle();
+    expect(find.text('1111'), findsOneWidget);
+    await tester.tap(find.text('Parcel Collected'));
+    await tester.pumpAndSettle();
+    expect(find.text('Enter Delivery Code'), findsOneWidget);
+  });
+
+  testWidgets('wrong delivery code shows the invalid state', (tester) async {
+    _phone(tester);
+    final fake = FakeOmwApi();
+    final seeded = fake.seedOpenTask();
+    final (state, _) = await _signedIn(
+      tester,
+      role: AppRole.courier,
+      api: fake,
+    );
+    await state.refresh();
+    final claimed = await state.claim(state.taskById(seeded.id)!);
+    await state.confirmPickup(claimed, '1111');
+    await tester.pumpAndSettle();
+
+    Navigator.of(tester.element(find.byType(Scaffold).first))
+        .push(DeliveryCodeScreen.route(seeded.id));
+    await tester.pumpAndSettle();
+    expect(fake.sent.any((m) => m['type'] == 'RUNNER_ARRIVED'), isTrue);
+
+    await tester.enterText(find.byType(TextField).first, '9025');
+    await tester.pumpAndSettle();
+    expect(find.text('Invalid Verification Code'), findsOneWidget);
+    expect(find.textContaining('2 attempts remaining'), findsOneWidget);
+
+    await tester.enterText(find.byType(TextField).first, '2222');
+    await tester.pumpAndSettle();
+    expect(state.taskById(seeded.id)!.status, TaskStatus.delivered);
+  });
+
+  testWidgets('wallet: buy tokens end to end', (tester) async {
+    _phone(tester);
+    final (state, fake) = await _signedIn(tester);
+    await state.setUpi('vismay@okaxis');
+    state.setSenderTab(SenderTab.wallet);
+    await tester.pumpAndSettle();
+    expect(find.text('Wallet & Earnings'), findsOneWidget);
+    expect(find.text('₹85'), findsWidgets);
+
+    await tester.tap(find.text('Buy Tokens').first);
+    await tester.pumpAndSettle();
+    final buy = find.text('Buy 500 Tokens for ₹800');
+    await tester.scrollUntilVisible(
+      buy,
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(buy);
+    await tester.pumpAndSettle();
+    expect(find.text('Confirm Purchase'), findsOneWidget);
+    expect(find.text('₹944'), findsOneWidget);
+
+    await tester.tap(find.text('Pay ₹944'));
+    await tester.pumpAndSettle();
+    expect(find.text('Payment Successful!'), findsOneWidget);
+    expect(fake.available, 585);
+    final toWallet = find.text('Go to Wallet');
+    await tester.scrollUntilVisible(
+      toWallet,
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(toWallet);
+    await tester.pumpAndSettle();
+    expect(find.text('₹585'), findsWidgets);
+  });
+
+  testWidgets('withdraw flags amounts above the available balance', (
+    tester,
+  ) async {
+    _phone(tester);
+    final (state, _) = await _signedIn(tester);
+    await state.setUpi('vismay@okaxis');
+    Navigator.of(tester.element(find.byType(Scaffold).first))
+        .push(WithdrawScreen.route());
+    await tester.pumpAndSettle();
+    // Default ₹500 > ₹85 available.
+    expect(
+      find.text('Amount exceeds your available balance of ₹85.'),
+      findsOneWidget,
+    );
+    await tester.tap(find.text('Max'));
+    await tester.pumpAndSettle();
+    expect(find.text('Withdraw ₹85'), findsOneWidget);
+  });
+
+  testWidgets('runner feed shows the network error state', (tester) async {
+    _phone(tester);
+    await _signedIn(
+      tester,
+      role: AppRole.courier,
+      api: FakeOmwApi(failTasks: true),
+    );
+    expect(find.text('Failed to Load Feed'), findsOneWidget);
+    expect(find.text('Retry Loading'), findsOneWidget);
+  });
+
+  testWidgets('account shows the profile and stats', (tester) async {
+    _phone(tester);
+    final (state, _) = await _signedIn(tester);
+    state.setSenderTab(SenderTab.account);
+    await tester.pumpAndSettle();
+    expect(find.text('Vismay Shrouty'), findsOneWidget);
+    expect(find.text('28'), findsOneWidget);
+    final logOut = find.text('Log Out');
+    await tester.scrollUntilVisible(
+      logOut,
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(logOut, findsOneWidget);
   });
 }

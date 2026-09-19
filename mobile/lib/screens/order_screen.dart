@@ -2,109 +2,183 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import '../api/omw_api.dart';
 import '../models/order_model.dart';
 import '../state/app_state.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_icons.dart';
 import '../theme/app_text.dart';
-import '../widgets/address_edit_modal.dart';
+import '../widgets/app_header.dart';
 import '../widgets/broadcast_confirmation_sheet.dart';
+import '../widgets/location_picker_sheet.dart';
 import '../widgets/omw_card.dart';
 import '../widgets/parcel_option_card.dart';
 import '../widgets/pill_button.dart';
 import '../widgets/route_card.dart';
 import '../widgets/svg_icon.dart';
+import '../widgets/ui_kit.dart';
+import 'wallet/buy_tokens_screen.dart';
 
-/// Sender home: the "onmyway-courier-screen" Figma frame.
+/// Sender home: the "onmyway-courier-screen" Figma frame (180:100).
+///
+/// Pickup and destination are campus landmarks from the backend; the ETA
+/// and suggested bounty come from /api/map/route-calculate and
+/// /api/tasks/calculate-wager. Broadcasting creates a task and locks the
+/// offer in escrow.
 class OrderScreen extends StatelessWidget {
   const OrderScreen({super.key});
 
-  Future<void> _editAddress(
-    BuildContext context, {
-    required bool pickup,
-  }) async {
+  Future<void> _pick(BuildContext context, {required bool pickup}) async {
     final state = context.read<AppState>();
-    final result = await AddressEditModal.show(
+    if (state.locations.isEmpty) await state.loadLocations();
+    if (!context.mounted) return;
+    final id = await LocationPickerSheet.show(
       context,
       title: pickup ? 'Pickup Spot' : 'Delivery Destination',
-      initial: pickup ? state.pickup : state.destination,
+      locations: state.locations,
+      selectedId: pickup ? state.pickup?.id : state.drop?.id,
     );
-    if (result == null) return;
-    pickup ? state.setPickup(result) : state.setDestination(result);
+    if (id == null) return;
+    pickup ? state.setPickup(id) : state.setDrop(id);
   }
 
   Future<void> _broadcast(BuildContext context) async {
     FocusScope.of(context).unfocus();
     final state = context.read<AppState>();
-    final request = await state.broadcast();
-    if (request == null || !context.mounted) return;
-    final viewActivity = await BroadcastConfirmationSheet.show(
-      context,
-      request,
+    try {
+      final task = await state.broadcast();
+      if (!context.mounted) return;
+      final viewActivity = await BroadcastConfirmationSheet.show(context, task);
+      if (viewActivity == true) state.setSenderTab(SenderTab.activity);
+    } on ApiException catch (e) {
+      if (!context.mounted) return;
+      if (e.message.startsWith('Insufficient tokens')) {
+        await _insufficient(context, state);
+      } else {
+        showSnack(context, e.message);
+      }
+    }
+  }
+
+  Future<void> _insufficient(BuildContext context, AppState state) {
+    return showModalBottomSheet<void>(
+      context: context,
+      builder: (sheet) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text('Not enough tokens', style: AppText.sectionTitle),
+              const SizedBox(height: AppSpacing.xs),
+              Text(
+                'This request locks ₹${state.offer} in escrow, but you have '
+                '₹${state.wallet.available} available. Buy tokens or lower '
+                'your offer.',
+                style: AppText.bodyMuted,
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              DisplayButton(
+                label: 'Buy Tokens',
+                icon: Lucide.coins,
+                onPressed: () {
+                  Navigator.of(sheet).pop();
+                  Navigator.of(context).push(BuyTokensScreen.route());
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
     );
-    if (viewActivity == true) state.setSenderTab(SenderTab.activity);
   }
 
   @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
+    final quote = state.quote;
 
-    return ListView(
-      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.gutter,
-        AppSpacing.xs,
-        AppSpacing.gutter,
-        AppSpacing.xl,
-      ),
+    return Column(
       children: [
-        OmwCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const CardEyebrow(
-                label: 'FAST COURIER MATCH',
-                trailing: EtaBadge(minutes: 18),
+        AppHeader(
+          onMascotTap: state.goToLanding,
+          onAvatarTap: state.openAccount,
+        ),
+        Expanded(
+          child: RefreshIndicator(
+            color: AppColors.ink,
+            onRefresh: state.updateQuote,
+            child: ListView(
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.gutter,
+                AppSpacing.xs,
+                AppSpacing.gutter,
+                AppSpacing.xl,
               ),
-              const SizedBox(height: AppSpacing.md),
-              RouteStops(
-                pickup: state.pickup,
-                destination: state.destination,
-                onEditPickup: () => _editAddress(context, pickup: true),
-                onEditDestination: () => _editAddress(context, pickup: false),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: AppSpacing.lg),
-        _ParcelCargo(
-          selected: state.parcel,
-          onSelect: state.selectParcel,
-          onClear: state.parcel == null ? null : state.clearParcel,
-        ),
-        const SizedBox(height: AppSpacing.lg),
-        _OfferCard(offer: state.offer),
-        const SizedBox(height: AppSpacing.lg),
-        PillButton(
-          label: 'Broadcast Delivery Request for ₹${state.offer}',
-          leading: const Icon(
-            Icons.play_arrow_outlined,
-            color: AppColors.surface,
-            size: 20,
-          ),
-          busy: state.broadcasting,
-          onPressed: state.canBroadcast ? () => _broadcast(context) : null,
-        ),
-        const SizedBox(height: AppSpacing.lg),
-        AnimatedSwitcher(
-          duration: AppMotion.fast,
-          child: Text(
-            state.parcel == null
-                ? 'Choose a parcel size to continue'
-                : 'Courier keeps 100% of fair value bids • Zero deduction',
-            key: ValueKey(state.parcel == null),
-            textAlign: TextAlign.center,
-            style: AppText.caption.copyWith(color: AppColors.inkAt(0.7)),
+              children: [
+                OmwCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      CardEyebrow(
+                        label: 'FAST COURIER MATCH',
+                        trailing: quote == null
+                            ? null
+                            : EtaBadge(minutes: quote.etaMinutes),
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+                      RouteStops(
+                        pickup: state.pickup?.name ?? 'Choose a pickup spot',
+                        destination: state.drop?.name ?? 'Choose a destination',
+                        onEditPickup: () => _pick(context, pickup: true),
+                        onEditDestination: () => _pick(context, pickup: false),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.lg),
+                _ParcelCargo(
+                  selected: state.parcel,
+                  onSelect: state.selectParcel,
+                  onClear: state.parcel == null ? null : state.clearParcel,
+                ),
+                const SizedBox(height: AppSpacing.lg),
+                _OfferCard(offer: state.offer),
+                const SizedBox(height: AppSpacing.lg),
+                PillButton(
+                  label: 'Broadcast Delivery Request for ₹${state.offer}',
+                  leading: const Icon(
+                    Icons.play_arrow_outlined,
+                    color: AppColors.surface,
+                    size: 20,
+                  ),
+                  busy: state.broadcasting,
+                  onPressed: state.canBroadcast
+                      ? () => _broadcast(context)
+                      : null,
+                ),
+                const SizedBox(height: AppSpacing.lg),
+                AnimatedSwitcher(
+                  duration: AppMotion.fast,
+                  child: Text(
+                    state.parcel == null
+                        ? 'Choose a parcel size to continue'
+                        : state.pickup != null && state.pickup == state.drop
+                        ? 'Pickup and destination must be different'
+                        : 'Courier keeps 100% of fair value bids • Zero deduction',
+                    key: ValueKey(
+                      '${state.parcel}-${state.pickup?.id}-${state.drop?.id}',
+                    ),
+                    textAlign: TextAlign.center,
+                    style: AppText.caption.copyWith(
+                      color: AppColors.inkAt(0.7),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ],

@@ -257,6 +257,50 @@ async function runSuite() {
     assert(profileRes.status === 200, 'Profile retrieved');
     assert(profileData.profile.isRestricted === true, 'Restricted account notice flag confirmed');
 
+    // 13b. Runner drops an accepted job; requester cancels after acceptance
+    console.log('\n👉 Testing Runner Drop & Late Cancellation Fee:');
+    const post = (path, body) =>
+      fetch(`${BASE_URL}${path}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+
+    const dropTaskRes = await post('/api/tasks', {
+      title: 'Drop test parcel',
+      pickupNodeId: 'loc-gazebo',
+      dropNodeId: 'loc-p-block',
+      wager: 20,
+      requesterId: 'usr-rohit'
+    });
+    const dropTask = (await dropTaskRes.json()).task;
+    await post(`/api/tasks/${dropTask.id}/claim`, { runnerId: 'usr-rohan' });
+    const trustBefore = (await (await fetch(`${BASE_URL}/api/users/usr-rohan`)).json()).profile.trustScore;
+    const dropRes = await post(`/api/tasks/${dropTask.id}/drop`, {
+      runnerId: 'usr-rohan',
+      reason: 'Vehicle breakdown / medical emergency'
+    });
+    const dropData = await dropRes.json();
+    assert(dropRes.status === 200, 'Runner drop returns HTTP 200');
+    assert(dropData.task.status === 'OPEN', 'Dropped task is reopened');
+    assert(dropData.task.runnerId === null, 'Runner assignment cleared');
+    assert(dropData.slash.slashedAmount === 5, 'Runner stake of 5 tokens slashed');
+    const trustAfter = (await (await fetch(`${BASE_URL}/api/users/usr-rohan`)).json()).profile.trustScore;
+    assert(trustAfter < trustBefore, `Runner trust score reduced (${trustBefore} → ${trustAfter})`);
+
+    await post(`/api/tasks/${dropTask.id}/claim`, { runnerId: 'usr-rohan' });
+    const rohitBefore = (await (await fetch(`${BASE_URL}/api/wallet/balance?userId=usr-rohit`)).json()).wallet;
+    const lateCancelRes = await post(`/api/tasks/${dropTask.id}/cancel`, { reason: 'Changed my mind' });
+    const lateCancelData = await lateCancelRes.json();
+    assert(lateCancelRes.status === 200, 'Late cancellation returns HTTP 200');
+    assert(lateCancelData.refund.feeCharged === 5, 'Flat 5 token fee charged after acceptance');
+    assert(lateCancelData.refund.refundedTokens === 15, 'Remaining 15 tokens refunded');
+    const rohitAfter = (await (await fetch(`${BASE_URL}/api/wallet/balance?userId=usr-rohit`)).json()).wallet;
+    assert(
+      rohitAfter.availableTokens === rohitBefore.availableTokens + 15,
+      'Requester available balance credited with refund'
+    );
+
     // 14. Runner Token Cash-Out / Withdrawal
     console.log('\n👉 Testing Runner Earnings Withdrawal:');
     const withdrawRes = await fetch(`${BASE_URL}/api/wallet/withdraw`, {

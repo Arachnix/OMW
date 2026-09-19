@@ -78,6 +78,20 @@ class SocketService {
         ws.subscribedTaskId = data.taskId;
         break;
 
+      case 'RUNNER_ARRIVED':
+        // Runner is at the drop-off; tell the requester to get their code ready.
+        if (data.taskId) {
+          this.broadcast({
+            type: 'RUNNER_ARRIVED',
+            data: {
+              taskId: data.taskId,
+              runnerId: data.runnerId,
+              timestamp: new Date().toISOString()
+            }
+          });
+        }
+        break;
+
       default:
         break;
     }

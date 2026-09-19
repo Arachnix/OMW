@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../models/omw_models.dart';
 import '../models/order_model.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_icons.dart';
@@ -13,9 +14,9 @@ import 'route_card.dart';
 class BroadcastConfirmationSheet extends StatelessWidget {
   const BroadcastConfirmationSheet({super.key, required this.request});
 
-  final DeliveryRequest request;
+  final OmwTask request;
 
-  static Future<bool?> show(BuildContext context, DeliveryRequest request) {
+  static Future<bool?> show(BuildContext context, OmwTask request) {
     return showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
@@ -59,7 +60,7 @@ class BroadcastConfirmationSheet extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.xs),
           Text(
-            'Nearby couriers can now accept it for ₹${request.fare}.',
+            '₹${request.wager} is locked in escrow until delivery. Nearby couriers can accept it now.',
             textAlign: TextAlign.center,
             style: AppText.caption.copyWith(color: AppColors.inkAt(0.7)),
           ),
@@ -70,12 +71,12 @@ class BroadcastConfirmationSheet extends StatelessWidget {
               children: [
                 CardEyebrow(
                   label: request.parcel.label.toUpperCase(),
-                  trailing: EtaBadge(minutes: request.etaMinutes),
+                  trailing: null,
                 ),
                 const SizedBox(height: AppSpacing.md),
                 RouteStops(
-                  pickup: request.pickup,
-                  destination: request.destination,
+                  pickup: request.pickupName,
+                  destination: request.dropName,
                 ),
               ],
             ),

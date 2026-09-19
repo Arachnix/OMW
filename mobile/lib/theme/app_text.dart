@@ -209,4 +209,74 @@ class AppText {
     fontSize: 16,
     fontWeight: FontWeight.w600,
   );
+
+  // Display (Archivo Black): titles and amounts on the wallet, account and
+  // payment frames. Archivo Black has no ₹ glyph, so Inter supplies it.
+  static const String displayFamily = 'ArchivoBlack';
+
+  static const TextStyle _display = TextStyle(
+    fontFamily: displayFamily,
+    fontFamilyFallback: [family],
+    color: AppColors.ink,
+    fontWeight: FontWeight.w400,
+    height: 1.1,
+  );
+
+  /// "Wallet & Earnings", "Account", "Buy Tokens".
+  static final TextStyle displayTitle = _display.copyWith(fontSize: 28);
+
+  /// "FUEL YOUR MOVEMENT." eyebrow under page titles.
+  static final TextStyle displayEyebrow = _display.copyWith(
+    fontSize: 12,
+    color: AppColors.inkAt(0.6),
+  );
+
+  /// Balance hero amount ("₹240").
+  static final TextStyle displayAmount = _display.copyWith(fontSize: 36);
+
+  /// Stat card figures ("₹1,240", "28").
+  static final TextStyle displayStat = _display.copyWith(fontSize: 24);
+
+  /// Token pack names and prices ("50 Tokens", "₹100").
+  static final TextStyle displayItem = _display.copyWith(fontSize: 17);
+
+  /// Buttons on the wallet / payment frames ("Buy 500 Tokens for ₹800").
+  static final TextStyle displayButton = _display.copyWith(
+    fontSize: 16,
+    color: AppColors.surface,
+  );
+
+  /// Small display labels ("Buy Tokens →" inline button, "Save 5%").
+  static final TextStyle displaySmall = _display.copyWith(fontSize: 13);
+
+  // Body text used across the newer frames
+  static final TextStyle body = _base.copyWith(
+    fontSize: 14,
+    fontWeight: FontWeight.w400,
+    height: 1.35,
+  );
+  static final TextStyle bodyMuted = body.copyWith(color: AppColors.inkAt(0.6));
+  static final TextStyle label = _base.copyWith(
+    fontSize: 16,
+    fontWeight: FontWeight.w600,
+  );
+  static final TextStyle labelSmall = _base.copyWith(
+    fontSize: 12,
+    fontWeight: FontWeight.w500,
+    color: AppColors.inkAt(0.6),
+  );
+  static final TextStyle overline = _base.copyWith(
+    fontSize: 12,
+    fontWeight: FontWeight.w700,
+    letterSpacing: 0.3,
+    color: AppColors.inkAt(0.6),
+  );
+  static final TextStyle headingLarge = _base.copyWith(
+    fontSize: 26,
+    fontWeight: FontWeight.w800,
+  );
+  static final TextStyle heading = _base.copyWith(
+    fontSize: 18,
+    fontWeight: FontWeight.w700,
+  );
 }

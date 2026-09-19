@@ -1,21 +1,27 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
-import '../data/mock_data.dart';
+import '../api/omw_api.dart';
 import '../design_system.dart';
+import '../models/omw_models.dart';
 import '../models/order_model.dart';
 import '../state/app_state.dart';
-import '../widgets/notice_sheet.dart';
+import '../utils/geo.dart';
+import 'order_details_screen.dart';
+import 'runner/reject_assignment_screen.dart';
 
-/// Notification sheets from the Figma "notification-order-accepted" frames:
-/// - 164:116 "Order Accepted!"   → [presentSenderNotice]
-/// - 163:76  "Order Cancelled"   → [presentSenderNotice]
-/// - 163:315 "On the way to Pickup" → [presentTracking]
-/// plus the courier's acceptance confirmation, which reuses the 164:116
-/// layout with courier copy ([presentCourierAccepted]).
+/// Notification sheets (Figma "notification-order-accepted" frames):
+/// - 164:116 Order Accepted!        (sender, courier claimed)
+/// - 164:267 Package Secured        (sender, pickup verified)
+/// - 163:182 Delivery Arrived!      (sender, courier at drop-off)
+/// - 163:76  Order Cancelled        (sender, courier dropped the job)
+/// - 163:129 Along-Your-Route!      (courier, new task near the route)
+/// - 163:315 On the way to Pickup   (sender, live tracking)
+/// plus the courier's acceptance confirmation.
 ///
-/// Figma shows these over a live map; the app has no maps, so they open over
-/// the current screen behind the [AppColors.scrim] overlay.
+/// Figma shows these over a live map; the app has no map tiles, so they open
+/// over the current screen behind [AppColors.scrim].
 
 enum _Action {
   track,
@@ -23,33 +29,35 @@ enum _Action {
   dashboard,
   contact,
   details,
-  backToFeed,
-  cancelJob,
+  call,
+  handoff,
+  accept,
+  decline,
+  startDelivery,
+  drop,
 }
 
-/// Watches [AppState.pendingNotice] and presents it over the sender shell,
-/// one at a time. Closing the sheet in any way dismisses the notice.
-class SenderNoticeHost extends StatefulWidget {
-  const SenderNoticeHost({super.key, required this.child});
+/// Watches [AppState.pendingNotice] and presents notices one at a time over
+/// the app shell. Closing a sheet in any way dismisses its notice.
+class NoticeHost extends StatefulWidget {
+  const NoticeHost({super.key, required this.child});
 
   final Widget child;
 
   @override
-  State<SenderNoticeHost> createState() => _SenderNoticeHostState();
+  State<NoticeHost> createState() => _NoticeHostState();
 }
 
-class _SenderNoticeHostState extends State<SenderNoticeHost> {
+class _NoticeHostState extends State<NoticeHost> {
   bool _showing = false;
 
   @override
   Widget build(BuildContext context) {
-    final notice = context.select<AppState, SenderNotice?>(
-      (s) => s.pendingNotice,
-    );
+    final notice = context.select<AppState, AppNotice?>((s) => s.pendingNotice);
     if (notice != null && !_showing) {
       _showing = true;
       WidgetsBinding.instance.addPostFrameCallback((_) async {
-        if (mounted) await presentSenderNotice(context, notice);
+        if (mounted) await presentNotice(context, notice);
         if (!mounted) return;
         setState(() => _showing = false);
       });
@@ -58,98 +66,107 @@ class _SenderNoticeHostState extends State<SenderNoticeHost> {
   }
 }
 
-Future<void> presentSenderNotice(
-  BuildContext context,
-  SenderNotice notice,
-) async {
+Future<void> presentNotice(BuildContext context, AppNotice notice) async {
   final state = context.read<AppState>();
+  final task = state.taskById(notice.task.id) ?? notice.task;
   final action = await showNoticeSheet<_Action>(
     context,
     builder: (_) => switch (notice.kind) {
-      NoticeKind.accepted => _AcceptedSheet(request: notice.request),
-      NoticeKind.cancelled => _CancelledSheet(notice: notice),
+      NoticeKind.accepted => _AcceptedSheet(task: task),
+      NoticeKind.pickedUp => _SecuredSheet(task: task),
+      NoticeKind.arrived => _ArrivedSheet(task: task),
+      NoticeKind.cancelledByCourier => _CancelledSheet(task: task),
+      NoticeKind.alongRoute => _AlongRouteSheet(notice: notice, task: task),
+      NoticeKind.delivered => _AcceptedSheet(task: task),
     },
   );
   state.dismissNotice(notice);
   if (!context.mounted) return;
   switch (action) {
     case _Action.track:
-      await presentTracking(context, notice.request);
+      await presentTracking(context, task);
     case _Action.searchNew:
-      state.searchNewPartner(notice.request);
-      _snack(context, 'Searching for a new partner');
+      showSnack(context, 'Your request is back on the courier feed.');
     case _Action.dashboard:
       state.setSenderTab(SenderTab.home);
+    case _Action.call:
+      showSnack(context, 'Calling is simulated in this demo.');
+    case _Action.handoff:
+      await Navigator.of(context).push(OrderDetailsScreen.route(task.id));
+    case _Action.accept:
+      await acceptTask(context, task);
     default:
       break;
   }
 }
 
-Future<void> presentTracking(
-  BuildContext context,
-  DeliveryRequest request,
-) async {
+/// Claims [task] for the courier and shows the confirmation sheet.
+Future<void> acceptTask(BuildContext context, OmwTask task) async {
+  final state = context.read<AppState>();
+  try {
+    final claimed = await state.claim(task);
+    if (!context.mounted) return;
+    await presentCourierAccepted(context, claimed);
+  } on ApiException catch (e) {
+    if (context.mounted) showSnack(context, e.message);
+  }
+}
+
+Future<void> presentTracking(BuildContext context, OmwTask task) async {
   final action = await showNoticeSheet<_Action>(
     context,
-    builder: (_) => _TrackingSheet(request: request),
+    builder: (_) => _TrackingSheet(taskId: task.id),
   );
   if (!context.mounted) return;
   switch (action) {
     case _Action.contact:
-      _snack(context, 'Calling is simulated in this demo');
+      showSnack(context, 'Calling is simulated in this demo.');
     case _Action.details:
-      context.read<AppState>().setSenderTab(SenderTab.activity);
+      await Navigator.of(context).push(OrderDetailsScreen.route(task.id));
     default:
       break;
   }
 }
 
-/// Courier side: shown right after ACCEPT. [senderNotified] is true when the
-/// request belongs to this device's sender (who now has a notice waiting).
-Future<void> presentCourierAccepted(
-  BuildContext context,
-  DeliveryRequest request, {
-  required bool senderNotified,
-}) async {
+/// Courier side, right after a successful claim.
+Future<void> presentCourierAccepted(BuildContext context, OmwTask task) async {
+  final state = context.read<AppState>();
   final action = await showNoticeSheet<_Action>(
     context,
-    builder: (_) =>
-        _CourierAcceptedSheet(request: request, senderNotified: senderNotified),
+    builder: (_) => _CourierAcceptedSheet(task: task),
   );
-  if (!context.mounted || action != _Action.cancelJob) return;
-  context.read<AppState>().cancelAccepted(request);
-  _snack(
-    context,
-    senderNotified
-        ? 'Job cancelled. The sender has been notified.'
-        : 'Job cancelled and returned to the feed.',
-  );
+  if (!context.mounted) return;
+  switch (action) {
+    case _Action.startDelivery:
+      state.setCourierTab(CourierTab.activity);
+    case _Action.drop:
+      await Navigator.of(context).push(RejectAssignmentScreen.route(task.id));
+    default:
+      break;
+  }
 }
 
-void _snack(BuildContext context, String message) {
-  ScaffoldMessenger.of(context)
-    ..hideCurrentSnackBar()
-    ..showSnackBar(SnackBar(content: Text(message)));
-}
+String _first(String? name) => (name ?? 'Courier').split(' ').first;
 
 // Sheets ---------------------------------------------------------------------
 
 class _AcceptedSheet extends StatelessWidget {
-  const _AcceptedSheet({required this.request});
+  const _AcceptedSheet({required this.task});
 
-  final DeliveryRequest request;
+  final OmwTask task;
 
   @override
   Widget build(BuildContext context) {
     return NoticeSheet(
       children: [
-        const NoticeHeader(
-          icon: Icon(AppGlyphs.check, color: AppColors.surface, size: 24),
+        NoticeHeader(
+          icon: const SvgIcon(Lucide.check, color: AppColors.surface, size: 24),
           title: 'Order Accepted!',
-          subtitle: 'Pickup partner ${MockData.courierName} is on the way.',
+          subtitle:
+              'Pickup partner ${task.runnerName ?? 'a campus runner'} is on the way.',
         ),
         const NoticeRule(),
-        _OrderCard(request: request),
+        OrderSummaryCard(task: task),
         const SizedBox(height: AppSpacing.xl),
         PillButton(
           label: 'View Live Tracking',
@@ -160,10 +177,127 @@ class _AcceptedSheet extends StatelessWidget {
   }
 }
 
-class _CancelledSheet extends StatelessWidget {
-  const _CancelledSheet({required this.notice});
+class _SecuredSheet extends StatelessWidget {
+  const _SecuredSheet({required this.task});
 
-  final SenderNotice notice;
+  final OmwTask task;
+
+  @override
+  Widget build(BuildContext context) {
+    final minutes = Geo.walkMinutes(
+      Geo.walkMeters(
+        task.pickupLat,
+        task.pickupLng,
+        task.dropLat,
+        task.dropLng,
+      ),
+    );
+    final eta = DateFormat('h:mm a').format(
+      (task.pickedUpAt ?? DateTime.now()).add(Duration(minutes: minutes)),
+    );
+    Widget row(String k, String v) => Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.md),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(k, style: AppText.bodyMuted.copyWith(fontSize: 16)),
+          ),
+          Flexible(
+            child: Text(
+              v,
+              textAlign: TextAlign.right,
+              style: AppText.label.copyWith(fontWeight: FontWeight.w700),
+            ),
+          ),
+        ],
+      ),
+    );
+    return NoticeSheet(
+      children: [
+        NoticeHeader(
+          filled: false,
+          icon: const SvgIcon(AppIcons.box, size: 24),
+          title: 'Package Secured',
+          subtitle:
+              '${task.runnerName ?? 'Your courier'} has successfully picked up your item.',
+        ),
+        const NoticeRule(),
+        row('Next Step:', 'In Transit to ${task.shortDrop}'),
+        row('Estimated Delivery:', eta),
+        const SizedBox(height: AppSpacing.sm),
+        PillButton(
+          label: 'Track Route Live',
+          onPressed: () => Navigator.of(context).pop(_Action.track),
+        ),
+      ],
+    );
+  }
+}
+
+class _ArrivedSheet extends StatelessWidget {
+  const _ArrivedSheet({required this.task});
+
+  final OmwTask task;
+
+  @override
+  Widget build(BuildContext context) {
+    final first = _first(task.runnerName);
+    return NoticeSheet(
+      children: [
+        NoticeHeader(
+          filled: false,
+          icon: const SvgIcon(Lucide.bell, size: 24),
+          title: 'Delivery Arrived!',
+          subtitle:
+              '${task.runnerName ?? 'Your courier'} is outside with your package.',
+        ),
+        const NoticeRule(),
+        NoticeCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('SECURITY DIRECTIVE', style: AppText.cardEyebrow),
+              const SizedBox(height: AppSpacing.sm),
+              Text(
+                'Provide OTP code ${task.deliveryOtp ?? ''} to $first to '
+                'unlock secure handoff of your ${task.parcel.label.toLowerCase()}.',
+                style: AppText.sheetBody,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: AppSpacing.xl),
+        Row(
+          children: [
+            Expanded(
+              flex: 4,
+              child: OutlinePillButton(
+                label: 'Call $first',
+                onPressed: () => Navigator.of(context).pop(_Action.call),
+              ),
+            ),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              flex: 6,
+              child: PillButton(
+                label: 'View Handoff Screen',
+                textStyle: AppText.buttonLarge.copyWith(
+                  color: AppColors.surface,
+                ),
+                onPressed: () => Navigator.of(context).pop(_Action.handoff),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _CancelledSheet extends StatelessWidget {
+  const _CancelledSheet({required this.task});
+
+  final OmwTask task;
 
   @override
   Widget build(BuildContext context) {
@@ -171,7 +305,7 @@ class _CancelledSheet extends StatelessWidget {
       children: [
         const NoticeHeader(
           filled: false,
-          icon: SvgIcon(AppIcons.circleX, size: 24),
+          icon: SvgIcon(Lucide.circleX, size: 24),
           title: 'Order Cancelled',
           subtitle: 'Your assigned courier cancelled this order.',
         ),
@@ -183,7 +317,7 @@ class _CancelledSheet extends StatelessWidget {
               Text('REASON FOR CANCELLATION', style: AppText.cardEyebrow),
               const SizedBox(height: AppSpacing.xs),
               Text(
-                notice.reason ?? MockData.cancelReason,
+                task.dropReason ?? 'Courier unable to continue',
                 style: AppText.orderValueStrong,
               ),
               const SizedBox(height: AppSpacing.sm),
@@ -211,37 +345,137 @@ class _CancelledSheet extends StatelessWidget {
   }
 }
 
-class _CourierAcceptedSheet extends StatelessWidget {
-  const _CourierAcceptedSheet({
-    required this.request,
-    required this.senderNotified,
-  });
+class _AlongRouteSheet extends StatelessWidget {
+  const _AlongRouteSheet({required this.notice, required this.task});
 
-  final DeliveryRequest request;
-  final bool senderNotified;
+  final AppNotice notice;
+  final OmwTask task;
+
+  @override
+  Widget build(BuildContext context) {
+    final km = (notice.detourKm ?? 0).toStringAsFixed(1);
+    return NoticeSheet(
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: NoticeHeader(
+                icon: const SvgIcon(
+                  Lucide.shuffle,
+                  color: AppColors.surface,
+                  size: 24,
+                ),
+                title: 'Along-Your-Route!',
+                subtitle: 'Only $km km extra deviation.',
+              ),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppColors.ink,
+                borderRadius: BorderRadius.circular(AppRadii.field),
+              ),
+              child: Text(
+                '+₹${task.wager}',
+                style: AppText.sheetTitle.copyWith(color: AppColors.surface),
+              ),
+            ),
+          ],
+        ),
+        const NoticeRule(),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'ORDER #${task.id} (ADD-ON)',
+                style: AppText.orderMeta.copyWith(fontSize: 13),
+              ),
+            ),
+            const SvgIcon(Lucide.clock, size: 16),
+            const SizedBox(width: AppSpacing.xs),
+            Text(
+              '+${notice.detourMinutes ?? 0} mins total',
+              style: AppText.orderMeta.copyWith(
+                color: AppColors.ink,
+                fontSize: 13,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        Text('1x ${task.title}', style: AppText.orderValueStrong),
+        const SizedBox(height: AppSpacing.sm),
+        NoticeCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(task.pickupName, style: AppText.orderValue),
+              const SizedBox(height: AppSpacing.sm),
+              Text(task.dropName, style: AppText.orderValue),
+            ],
+          ),
+        ),
+        const SizedBox(height: AppSpacing.xl),
+        Row(
+          children: [
+            Expanded(
+              flex: 4,
+              child: OutlinePillButton(
+                label: 'Decline',
+                onPressed: () => Navigator.of(context).pop(_Action.decline),
+              ),
+            ),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              flex: 7,
+              child: PillButton(
+                label: 'Accept & Add to Route',
+                textStyle: AppText.buttonLarge.copyWith(
+                  color: AppColors.surface,
+                ),
+                onPressed: () => Navigator.of(context).pop(_Action.accept),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _CourierAcceptedSheet extends StatelessWidget {
+  const _CourierAcceptedSheet({required this.task});
+
+  final OmwTask task;
 
   @override
   Widget build(BuildContext context) {
     return NoticeSheet(
       children: [
         NoticeHeader(
-          icon: const Icon(AppGlyphs.check, color: AppColors.surface, size: 24),
+          icon: const SvgIcon(Lucide.check, color: AppColors.surface, size: 24),
           title: 'Delivery Accepted!',
-          subtitle: senderNotified
-              ? 'Head to pickup. The sender has been notified.'
-              : 'Head to pickup. It is in your accepted jobs.',
+          subtitle:
+              'Head to ${task.shortPickup}. ${task.requesterName} has been notified.',
         ),
         const NoticeRule(),
-        _OrderCard(request: request),
+        OrderSummaryCard(task: task),
+        const SizedBox(height: AppSpacing.md),
+        Text(
+          'Your ₹${task.runnerStake} commitment stake is locked until delivery.',
+          style: AppText.sheetBody,
+        ),
         const SizedBox(height: AppSpacing.xl),
         PillButton(
-          label: 'Back to Feed',
-          onPressed: () => Navigator.of(context).pop(_Action.backToFeed),
+          label: 'Start Delivery',
+          onPressed: () => Navigator.of(context).pop(_Action.startDelivery),
         ),
         const SizedBox(height: AppSpacing.sm),
         OutlinePillButton(
-          label: 'Cancel Job',
-          onPressed: () => Navigator.of(context).pop(_Action.cancelJob),
+          label: 'Drop Assignment',
+          onPressed: () => Navigator.of(context).pop(_Action.drop),
         ),
       ],
     );
@@ -249,12 +483,41 @@ class _CourierAcceptedSheet extends StatelessWidget {
 }
 
 class _TrackingSheet extends StatelessWidget {
-  const _TrackingSheet({required this.request});
+  const _TrackingSheet({required this.taskId});
 
-  final DeliveryRequest request;
+  final String taskId;
 
   @override
   Widget build(BuildContext context) {
+    final task = context.watch<AppState>().taskById(taskId);
+    if (task == null) return const SizedBox.shrink();
+    final toDrop = Geo.walkMinutes(
+      Geo.walkMeters(
+        task.pickupLat,
+        task.pickupLng,
+        task.dropLat,
+        task.dropLng,
+      ),
+    );
+    final (title, eta) = switch (task.status) {
+      TaskStatus.inTransit => (
+        'On the way to you',
+        'ETA: $toDrop minutes to delivery',
+      ),
+      TaskStatus.delivered => ('Delivered', 'Handed over at ${task.shortDrop}'),
+      TaskStatus.open => (
+        'Waiting for a courier',
+        'Your request is on the feed',
+      ),
+      TaskStatus.cancelled => (
+        'Order cancelled',
+        'Escrow refunded to your wallet',
+      ),
+      TaskStatus.claimed => (
+        'On the way to Pickup',
+        'ETA: ${toDrop + 5} minutes to delivery',
+      ),
+    };
     return NoticeSheet(
       showHandle: false,
       children: [
@@ -273,7 +536,7 @@ class _TrackingSheet extends StatelessWidget {
                 width: AppRadii.strokeBold,
               ),
             ),
-            child: Text('Order ID: #${request.id}', style: AppText.chip),
+            child: Text('Order ID: #${task.id}', style: AppText.chip),
           ),
         ),
         const SizedBox(height: AppSpacing.lg),
@@ -303,65 +566,76 @@ class _TrackingSheet extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Courier: ${MockData.courierShortName}',
+                    'Courier: ${task.runnerName ?? 'Not assigned'}',
                     style: AppText.orderValueStrong,
                   ),
-                  Text('ID Verified', style: AppText.sheetBody),
+                  Text(
+                    task.runnerName == null
+                        ? 'Waiting for match'
+                        : 'ID Verified',
+                    style: AppText.sheetBody,
+                  ),
                 ],
               ),
             ),
             Semantics(
-              label: 'Fare ₹${request.fare}',
+              label: 'Fare ₹${task.wager}',
               excludeSemantics: true,
-              child: Text('₹${request.fare}', style: AppText.price),
+              child: Text('₹${task.wager}', style: AppText.price),
             ),
           ],
         ),
         const NoticeRule(),
         Semantics(
           header: true,
-          child: Text('On the way to Pickup', style: AppText.trackingTitle),
+          liveRegion: true,
+          child: Text(title, style: AppText.trackingTitle),
         ),
         const SizedBox(height: AppSpacing.xs),
-        Text(
-          'ETA: ${request.etaMinutes} minutes to Pickup',
-          style: AppText.sheetBody,
-        ),
+        Text(eta, style: AppText.sheetBody),
         const SizedBox(height: AppSpacing.lg),
-        _TrackStop(
+        TrackStop(
           lead: const SvgIcon(AppIcons.mapPin, size: 20),
           title: 'Pickup Spot',
-          address: request.pickup,
+          address: task.pickupName,
         ),
         const Padding(
           padding: EdgeInsets.only(left: 11),
           child: Align(
             alignment: Alignment.centerLeft,
-            child: CustomPaint(size: Size(2, 36), painter: _DotsPainter()),
+            child: CustomPaint(size: Size(2, 36), painter: DotsPainter()),
           ),
         ),
-        _TrackStop(
-          lead: const _TargetMarker(),
+        TrackStop(
+          lead: const TargetMarker(),
           title: 'Delivery Destination',
-          address: request.destination,
+          address: task.dropName,
         ),
         const NoticeRule(),
-        _SplitActionPill(
-          onContact: () => Navigator.of(context).pop(_Action.contact),
-          onDetails: () => Navigator.of(context).pop(_Action.details),
+        SplitActionPill(
+          left: (
+            icon: Lucide.phone,
+            label: 'Contact Courier',
+            onTap: () => Navigator.of(context).pop(_Action.contact),
+          ),
+          right: (
+            icon: AppIcons.truck,
+            label: 'View Order Details',
+            onTap: () => Navigator.of(context).pop(_Action.details),
+          ),
         ),
       ],
     );
   }
 }
 
-// Parts ----------------------------------------------------------------------
+// Shared parts ---------------------------------------------------------------
 
 /// "ORDER #… / ₹… / item / PICKUP / DELIVERY" card from 164:116.
-class _OrderCard extends StatelessWidget {
-  const _OrderCard({required this.request});
+class OrderSummaryCard extends StatelessWidget {
+  const OrderSummaryCard({super.key, required this.task});
 
-  final DeliveryRequest request;
+  final OmwTask task;
 
   @override
   Widget build(BuildContext context) {
@@ -372,10 +646,10 @@ class _OrderCard extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: Text('ORDER #${request.id}', style: AppText.orderMeta),
+                child: Text('ORDER #${task.id}', style: AppText.orderMeta),
               ),
               Text(
-                '₹${request.fare}',
+                '₹${task.wager}',
                 style: AppText.orderMeta.copyWith(
                   color: AppColors.ink,
                   fontWeight: FontWeight.w700,
@@ -385,20 +659,20 @@ class _OrderCard extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.sm),
           Text(
-            '${request.parcel.label} · ${request.parcel.weight}',
+            '${task.parcel.label} · ${task.parcel.weight}',
             style: AppText.orderValue,
           ),
           const SizedBox(height: AppSpacing.md),
           NoticeStop(
             marker: StopMarker.dot,
             label: 'PICKUP',
-            value: request.pickup,
+            value: task.pickupName,
           ),
           const SizedBox(height: AppSpacing.md),
           NoticeStop(
             marker: StopMarker.square,
             label: 'DELIVERY',
-            value: request.destination,
+            value: task.dropName,
           ),
         ],
       ),
@@ -406,8 +680,9 @@ class _OrderCard extends StatelessWidget {
   }
 }
 
-class _TrackStop extends StatelessWidget {
-  const _TrackStop({
+class TrackStop extends StatelessWidget {
+  const TrackStop({
+    super.key,
     required this.lead,
     required this.title,
     required this.address,
@@ -450,23 +725,25 @@ class _TrackStop extends StatelessWidget {
   }
 }
 
-/// Outlined ring with an ink centre (delivery marker in 163:315).
-class _TargetMarker extends StatelessWidget {
-  const _TargetMarker();
+/// Outlined ring with an ink centre (delivery marker).
+class TargetMarker extends StatelessWidget {
+  const TargetMarker({super.key, this.size = 22});
+
+  final double size;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 22,
-      height: 22,
+      width: size,
+      height: size,
       alignment: Alignment.center,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         border: Border.all(color: AppColors.ink, width: AppRadii.strokeBold),
       ),
       child: Container(
-        width: 8,
-        height: 8,
+        width: size * 0.36,
+        height: size * 0.36,
         decoration: const BoxDecoration(
           color: AppColors.ink,
           shape: BoxShape.circle,
@@ -476,8 +753,8 @@ class _TargetMarker extends StatelessWidget {
   }
 }
 
-class _DotsPainter extends CustomPainter {
-  const _DotsPainter();
+class DotsPainter extends CustomPainter {
+  const DotsPainter();
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -494,34 +771,42 @@ class _DotsPainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
-/// Black pill split into "Contact Courier" and "View Order Details".
-class _SplitActionPill extends StatelessWidget {
-  const _SplitActionPill({required this.onContact, required this.onDetails});
+typedef PillHalf = ({String icon, String label, VoidCallback onTap});
 
-  final VoidCallback onContact;
-  final VoidCallback onDetails;
+/// Black pill split into two actions ("Cancel Order | +₹5 Increase",
+/// "Contact Courier | View Order Details").
+class SplitActionPill extends StatelessWidget {
+  const SplitActionPill({
+    super.key,
+    required this.left,
+    required this.right,
+    this.divider = true,
+  });
+
+  final PillHalf left;
+  final PillHalf right;
+  final bool divider;
 
   @override
   Widget build(BuildContext context) {
     final label = AppText.orderValueStrong.copyWith(color: AppColors.surface);
-    Widget half(Widget icon, String text, VoidCallback onTap) => Expanded(
+    Widget half(PillHalf h) => Expanded(
       child: Semantics(
         button: true,
-        label: text,
+        label: h.label,
         excludeSemantics: true,
         child: InkWell(
-          onTap: onTap,
+          onTap: h.onTap,
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
-            // Scale the label down rather than truncating on narrow phones.
             child: FittedBox(
               fit: BoxFit.scaleDown,
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  icon,
+                  SvgIcon(h.icon, size: 20, color: AppColors.surface),
                   const SizedBox(width: AppSpacing.sm),
-                  Text(text, style: label, maxLines: 1),
+                  Text(h.label, style: label, maxLines: 1),
                 ],
               ),
             ),
@@ -538,16 +823,10 @@ class _SplitActionPill extends StatelessWidget {
         height: 48,
         child: Row(
           children: [
-            half(
-              const Icon(AppGlyphs.phone, color: AppColors.surface, size: 20),
-              'Contact Courier',
-              onContact,
-            ),
-            half(
-              const SvgIcon(AppIcons.truck, size: 20, color: AppColors.surface),
-              'View Order Details',
-              onDetails,
-            ),
+            half(left),
+            if (divider)
+              Container(width: 1.5, height: 30, color: AppColors.surface),
+            half(right),
           ],
         ),
       ),

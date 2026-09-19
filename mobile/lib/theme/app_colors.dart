@@ -1,17 +1,29 @@
 import 'package:flutter/material.dart';
 
-/// Colour tokens extracted from the OMW Figma file (node 72:282).
+/// Colour tokens extracted from the OMW Figma file.
 ///
-/// The design is strictly monochrome: black ink on white, with two light
-/// greys for filled surfaces and two for hairlines.
+/// The app is strictly black and white: ink on white or off-white, with light
+/// neutral greys for filled surfaces and hairlines. Figma's few red/green
+/// accents (errors, credits, "verified") are rendered in ink; state is carried
+/// by icons, weight and outlines instead of hue.
 class AppColors {
   AppColors._();
 
   static const Color ink = Color(0xFF000000);
+
+  /// Near-black of the wallet / payment frames (`#111111`).
+  static const Color inkDeep = Color(0xFF111111);
   static const Color surface = Color(0xFFFFFFFF);
+
+  /// Off-white page background of the wallet, account and payment frames
+  /// (`#FAFAF9`).
+  static const Color canvas = Color(0xFFFAFAF9);
 
   /// Selected cargo tile, custom-amount pill, icon discs (`#F5F5F5`).
   static const Color fillMuted = Color(0xFFF5F5F5);
+
+  /// Info boxes and icon tiles on the off-white frames (`#F5F5F4`).
+  static const Color fillWarm = Color(0xFFF5F5F4);
 
   /// Secondary auth buttons on the sign-in screen (`#EEEEEE`).
   static const Color fillButton = Color(0xFFEEEEEE);
@@ -28,10 +40,11 @@ class AppColors {
   /// Near-black used by the "All Deliveries" pill (rgba 0,0,0,.9).
   static const Color inkSoft = Color(0xE6000000);
 
-  static const Color error = Color(0xFFB3261E);
+  /// Errors are ink too (monochrome rule); pair them with an alert icon.
+  static const Color error = ink;
 
-  /// Dim overlay behind notification sheets (rgba 15,23,42,.6 in Figma).
-  static const Color scrim = Color(0x990F172A);
+  /// Dim overlay behind notification sheets.
+  static const Color scrim = Color(0x99000000);
 
   /// Figma renders secondary copy as ink at reduced opacity.
   static Color inkAt(double opacity) => ink.withValues(alpha: opacity);
@@ -59,6 +72,12 @@ class AppSpacing {
 /// Corner radii and stroke weights used across the Figma frames.
 class AppRadii {
   AppRadii._();
+
+  /// Wallet / account cards (balance card, profile card).
+  static const double panel = 20;
+
+  /// Page-title icon buttons (back, history, settings).
+  static const double iconButton = 10;
 
   static const double field = 8;
   static const double tile = 12;

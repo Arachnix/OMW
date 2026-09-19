@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 
+import '../api/omw_api.dart';
 import '../state/app_state.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_icons.dart';
@@ -11,7 +12,8 @@ import '../widgets/pill_button.dart';
 /// "Sign_android" / "Sign_iOS" frames. iOS shows "Continue with Apple";
 /// Android shows "Continue with Email".
 ///
-/// Sign-in is mocked locally: no account provider is contacted.
+/// Email sign-in goes to POST /api/auth/login. Google/Apple are not wired to
+/// real providers and sign in to the backend's seeded demo students.
 class SignInScreen extends StatefulWidget {
   const SignInScreen({super.key});
 
@@ -40,18 +42,44 @@ class _SignInScreenState extends State<SignInScreen> {
     return null;
   }
 
-  void _continueWithEmail() {
-    if (!(_formKey.currentState?.validate() ?? false)) return;
+  bool _busy = false;
+
+  Future<void> _run(Future<void> Function() action) async {
     FocusScope.of(context).unfocus();
-    context.read<AppState>().signIn(_email.text.trim());
+    setState(() => _busy = true);
+    try {
+      await action();
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(e.message)));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
-  void _demoProvider(String provider) {
-    FocusScope.of(context).unfocus();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Demo mode: signed in with $provider')),
-    );
-    context.read<AppState>().signIn('$provider account');
+  void _continueWithEmail() {
+    if (_busy || !(_formKey.currentState?.validate() ?? false)) return;
+    _run(() => context.read<AppState>().signIn(_email.text.trim()));
+  }
+
+  /// Google / Apple aren't wired to real providers; they sign in to the
+  /// backend's seeded demo students (requester and runner).
+  void _demoProvider(String provider, {required bool runner}) {
+    if (_busy) return;
+    _run(() async {
+      await context.read<AppState>().signInDemo(runner: runner);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Demo: signed in as ${context.read<AppState>().user?.name} '
+            '($provider sign-in is not connected in this build)',
+          ),
+        ),
+      );
+    });
   }
 
   @override
@@ -114,6 +142,7 @@ class _SignInScreenState extends State<SignInScreen> {
                         const SizedBox(height: AppSpacing.lg),
                         PillButton(
                           label: 'Continue',
+                          busy: _busy,
                           height: 40,
                           radius: AppRadii.field,
                           textStyle: AppText.button.copyWith(
@@ -133,7 +162,8 @@ class _SignInScreenState extends State<SignInScreen> {
                             height: 20,
                             excludeFromSemantics: true,
                           ),
-                          onPressed: () => _demoProvider('Google'),
+                          onPressed: () =>
+                              _demoProvider('Google', runner: false),
                         ),
                         const SizedBox(height: AppSpacing.sm),
                         if (isIOS)
@@ -145,7 +175,8 @@ class _SignInScreenState extends State<SignInScreen> {
                               height: 20,
                               excludeFromSemantics: true,
                             ),
-                            onPressed: () => _demoProvider('Apple'),
+                            onPressed: () =>
+                                _demoProvider('Apple', runner: true),
                           )
                         else
                           SoftButton(

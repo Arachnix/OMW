@@ -88,7 +88,7 @@ class LandingScreen extends StatelessWidget {
                               children: [
                                 Expanded(
                                   child: _ChoiceCard(
-                                    glyph: AppGlyphs.bag,
+                                    svg: Lucide.shoppingBag,
                                     title: 'ORDER',
                                     subtitle: 'PICK UP AHEAD',
                                     onTap: () => state.enterAs(AppRole.sender),
@@ -123,10 +123,10 @@ class LandingScreen extends StatelessWidget {
         selectedIndex: 0,
         onSelected: (i) => _onNav(context, i),
         destinations: const [
-          NavDestination(glyph: AppGlyphs.navHome, label: 'Home'),
-          NavDestination(glyph: AppGlyphs.navOrders, label: 'Orders'),
-          NavDestination(glyph: AppGlyphs.navFavorites, label: 'Favorites'),
-          NavDestination(glyph: AppGlyphs.navAccount, label: 'Account'),
+          NavDestination(icon: Lucide.house, label: 'Home'),
+          NavDestination(icon: Lucide.clock, label: 'Orders'),
+          NavDestination(icon: Lucide.heart, label: 'Favorites'),
+          NavDestination(icon: Lucide.user, label: 'Account'),
         ],
       ),
     );
@@ -165,14 +165,12 @@ class _BrandHeader extends StatelessWidget {
 class _ChoiceCard extends StatelessWidget {
   const _ChoiceCard({
     this.svg,
-    this.glyph,
     required this.title,
     required this.subtitle,
     required this.onTap,
   });
 
   final String? svg;
-  final IconData? glyph;
   final String title;
   final String subtitle;
   final VoidCallback onTap;
@@ -209,9 +207,7 @@ class _ChoiceCard extends StatelessWidget {
                       width: AppRadii.stroke,
                     ),
                   ),
-                  child: svg != null
-                      ? SvgIcon(svg!, size: 20)
-                      : Icon(glyph, size: 20, color: AppColors.ink),
+                  child: SvgIcon(svg!, size: 20),
                 ),
                 const SizedBox(height: AppSpacing.xxl),
                 Text(title, style: AppText.choiceTitle),
@@ -226,11 +222,7 @@ class _ChoiceCard extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    const Icon(
-                      AppGlyphs.arrowRight,
-                      size: 16,
-                      color: AppColors.ink,
-                    ),
+                    const SvgIcon(Lucide.arrowRight, size: 16),
                   ],
                 ),
               ],

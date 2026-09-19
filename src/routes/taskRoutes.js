@@ -11,6 +11,11 @@ import { socketService } from '../services/socket/socketService.js';
 
 const router = Router();
 
+// Flat fee paid to the runner when a requester cancels after acceptance.
+const LATE_CANCEL_FEE = 5;
+// Trust score penalty when a runner drops an accepted job.
+const RELIABILITY_PENALTY = 0.015;
+
 /**
  * POST /api/tasks/calculate-wager
  * Smart Slider Dynamic Pricing Baseline Calculator
@@ -412,26 +417,90 @@ router.post('/:id/cancel', (req, res) => {
     return res.status(404).json({ success: false, error: 'Task not found' });
   }
 
-  if (task.status !== 'OPEN') {
+  if (task.status !== 'OPEN' && task.status !== 'CLAIMED') {
     return res.status(400).json({
       success: false,
       error: `Cannot cancel task in status ${task.status}`
     });
   }
 
+  const { reason = null } = req.body || {};
+
   try {
-    const refund = EscrowService.refundEscrowOnCancel(task);
+    const lateCancel = task.status === 'CLAIMED';
+    const refund = lateCancel
+      ? EscrowService.settleLateCancel(task, LATE_CANCEL_FEE)
+      : EscrowService.refundEscrowOnCancel(task);
     task.status = 'CANCELLED';
     task.cancelledAt = new Date().toISOString();
+    task.cancelReason = reason;
+    task.cancelledBy = 'requester';
     store.saveTask(task);
 
     socketService.broadcastTaskStateChange(task, task.requesterId);
 
     res.json({
       success: true,
-      message: 'Task cancelled and escrow refunded to requester',
+      message: lateCancel
+        ? `Task cancelled; ${refund.feeCharged} token fee paid to the runner`
+        : 'Task cancelled and escrow refunded to requester',
       task,
       refund
+    });
+  } catch (err) {
+    return res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * POST /api/tasks/:id/drop
+ * Runner drops a claimed task. Their stake is slashed, their trust score
+ * drops 1.5%, and the task goes back to OPEN for another runner.
+ */
+router.post('/:id/drop', (req, res) => {
+  const { runnerId, reason = 'Runner dropped the assignment' } = req.body || {};
+  const task = store.getTask(req.params.id);
+
+  if (!task) {
+    return res.status(404).json({ success: false, error: 'Task not found' });
+  }
+
+  if (task.status !== 'CLAIMED') {
+    return res.status(400).json({
+      success: false,
+      error: `Only claimed tasks can be dropped. Current status is ${task.status}`
+    });
+  }
+
+  if (runnerId && task.runnerId !== runnerId) {
+    return res.status(403).json({ success: false, error: 'Task is assigned to another runner' });
+  }
+
+  try {
+    const slash = EscrowService.slashRunnerStake(task, reason);
+
+    const runner = store.getUser(task.runnerId);
+    if (runner) {
+      runner.trustScore = Math.round(runner.trustScore * (1 - RELIABILITY_PENALTY) * 100) / 100;
+    }
+
+    const droppedBy = task.runnerId;
+    task.status = 'OPEN';
+    task.runnerId = null;
+    task.runnerName = null;
+    task.runnerStakeLocked = 0;
+    task.claimedAt = null;
+    task.dropReason = reason;
+    task.droppedAt = new Date().toISOString();
+    store.saveTask(task);
+
+    socketService.broadcastTaskStateChange(task, droppedBy);
+
+    res.json({
+      success: true,
+      message: 'Assignment dropped; stake slashed and task reopened',
+      task,
+      slash
     });
   } catch (err) {
     return res.status(400).json({ success: false, error: err.message });

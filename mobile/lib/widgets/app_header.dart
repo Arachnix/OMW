@@ -38,25 +38,34 @@ class AppHeader extends StatelessWidget {
               ),
             ),
           ),
-          _HeaderButton(
-            tooltip: 'Your account',
-            onTap: onAvatarTap,
-            child: Container(
-              width: 40,
-              height: 40,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: AppColors.ink,
-                  width: AppRadii.stroke,
-                ),
-              ),
-              child: const SvgIcon(AppIcons.userRound, size: 24),
-            ),
-          ),
+          AppHeaderAvatar(onTap: onAvatarTap),
         ],
+      ),
+    );
+  }
+}
+
+/// Outlined avatar button that opens the Account tab.
+class AppHeaderAvatar extends StatelessWidget {
+  const AppHeaderAvatar({super.key, required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return _HeaderButton(
+      tooltip: 'Your account',
+      onTap: onTap,
+      child: Container(
+        width: 40,
+        height: 40,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          shape: BoxShape.circle,
+          border: Border.all(color: AppColors.ink, width: AppRadii.stroke),
+        ),
+        child: const SvgIcon(AppIcons.userRound, size: 24),
       ),
     );
   }

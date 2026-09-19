@@ -128,6 +128,56 @@ export class EscrowService {
   }
 
   /**
+   * Cancels a task a runner has already claimed. The requester pays a flat
+   * fee to the runner for their travel time; the rest of the escrow is
+   * refunded and the runner's stake is returned.
+   */
+  static settleLateCancel(task, fee) {
+    const requesterWallet = store.getWallet(task.requesterId);
+    const runnerWallet = store.getWallet(task.runnerId);
+    const charged = Math.min(fee, task.wager);
+
+    requesterWallet.escrowLocked = Math.max(0, requesterWallet.escrowLocked - task.wager);
+    requesterWallet.availableTokens += task.wager - charged;
+
+    runnerWallet.runnerStaked = Math.max(0, runnerWallet.runnerStaked - task.runnerStakeLocked);
+    runnerWallet.availableTokens += task.runnerStakeLocked + charged;
+
+    store.addTransaction({
+      userId: task.requesterId,
+      type: 'ESCROW_REFUND',
+      tokens: task.wager - charged,
+      reference: `Task ${task.id} cancelled after acceptance; ${charged} token fee to runner`,
+      referenceTaskId: task.id,
+      status: 'COMPLETED'
+    });
+
+    store.addTransaction({
+      userId: task.runnerId,
+      type: 'CANCELLATION_FEE',
+      tokens: charged,
+      reference: `Task ${task.id} cancelled by requester; travel compensation`,
+      referenceTaskId: task.id,
+      status: 'COMPLETED'
+    });
+
+    store.addTransaction({
+      userId: task.runnerId,
+      type: 'STAKE_RETURN',
+      tokens: task.runnerStakeLocked,
+      reference: `Task ${task.id} runner commitment stake returned`,
+      referenceTaskId: task.id,
+      status: 'COMPLETED'
+    });
+
+    return {
+      refundedTokens: task.wager - charged,
+      feeCharged: charged,
+      newAvailableBalance: requesterWallet.availableTokens
+    };
+  }
+
+  /**
    * Slashes runner's stake if task is abandoned or confirmed fraudulent
    */
   static slashRunnerStake(task, reason = 'Task abandoned') {

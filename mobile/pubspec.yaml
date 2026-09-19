@@ -38,6 +38,10 @@ dependencies:
   intl: ^0.20.3
   flutter_svg: ^2.3.0
   video_player: ^2.14.0
+  http: ^1.6.0
+  web_socket_channel: ^3.0.3
+  shared_preferences: ^2.5.5
+  geolocator: ^14.0.3
 
 dev_dependencies:
   flutter_test:
@@ -65,6 +69,8 @@ flutter:
     - assets/
     # Figma exports: Lucide icons, Google/Apple logos, header mascot badge.
     - assets/figma/
+    # Lucide icons used by the Figma frames (ISC licence in the folder).
+    - assets/icons/
     # Brand mascot, logo and wordmark/mascot animation MP4s.
     - assets/brand/
 
@@ -85,6 +91,11 @@ flutter:
           weight: 800
         - asset: assets/fonts/inter/Inter-Black.ttf
           weight: 900
+    # Display face of the wallet / account / payment frames.
+    # Licence: assets/fonts/archivo_black/OFL.txt
+    - family: ArchivoBlack
+      fonts:
+        - asset: assets/fonts/archivo_black/ArchivoBlack-Regular.ttf
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

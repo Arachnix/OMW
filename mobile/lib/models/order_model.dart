@@ -1,11 +1,14 @@
 import '../theme/app_icons.dart';
+import 'omw_models.dart';
 
 /// Which side of the marketplace the signed-in user is acting as.
 enum AppRole { sender, courier }
 
-enum SenderTab { home, activity, account }
+/// Sender tab bar (Figma "account" / "wallet-and-earnings" frames).
+enum SenderTab { home, activity, wallet, account }
 
-enum CourierTab { feed, account }
+/// Courier tab bar (Figma "runner-feed" frame).
+enum CourierTab { feed, activity, earnings, account }
 
 enum ParcelType { documents, small, medium }
 
@@ -28,21 +31,11 @@ extension ParcelTypeX on ParcelType {
     ParcelType.medium => AppIcons.package,
   };
 
-  /// Suggested fare shown when the parcel type is picked.
-  int get suggestedFare => switch (this) {
-    ParcelType.documents => 80,
-    ParcelType.small => 120,
-    ParcelType.medium => 160,
-  };
-}
-
-enum DeliveryStatus { broadcasted, accepted, delivered }
-
-extension DeliveryStatusX on DeliveryStatus {
-  String get label => switch (this) {
-    DeliveryStatus.broadcasted => 'Looking for courier',
-    DeliveryStatus.accepted => 'Courier on the way',
-    DeliveryStatus.delivered => 'Delivered',
+  /// Category stored on the backend task.
+  String get category => switch (this) {
+    ParcelType.documents => 'documents',
+    ParcelType.small => 'small',
+    ParcelType.medium => 'medium',
   };
 }
 
@@ -56,89 +49,88 @@ extension DeliverySourceX on DeliverySource {
   };
 }
 
-/// Filters from the "Pills" component on the delivery feed.
-enum FeedFilter { all, highFare, nearby }
+/// Filter pills on the runner feed.
+enum RunnerFilter { alongRoute, nearby, all }
 
-extension FeedFilterX on FeedFilter {
+extension RunnerFilterX on RunnerFilter {
   String get label => switch (this) {
-    FeedFilter.all => 'All Deliveries',
-    FeedFilter.highFare => 'High Fare (>150)',
-    FeedFilter.nearby => '< 3km',
-  };
-
-  bool matches(DeliveryRequest r) => switch (this) {
-    FeedFilter.all => true,
-    FeedFilter.highFare => r.fare > 150,
-    FeedFilter.nearby => r.distanceKm < 3,
+    RunnerFilter.alongRoute => 'Along my route',
+    RunnerFilter.nearby => 'Nearby',
+    RunnerFilter.all => 'All',
   };
 }
 
-class DeliveryRequest {
-  const DeliveryRequest({
-    required this.id,
-    required this.pickup,
-    required this.destination,
-    required this.parcel,
-    required this.fare,
-    required this.distanceKm,
-    required this.etaMinutes,
-    required this.createdAt,
-    this.status = DeliveryStatus.broadcasted,
-    this.sources = const {},
-    this.pickupDetail,
-    this.destinationDetail,
+/// How well a task fits the runner's active route.
+enum RouteFit { perfect, near, detour }
+
+extension RouteFitX on RouteFit {
+  String get eyebrow => switch (this) {
+    RouteFit.perfect => 'PERFECT FOR YOUR ROUTE',
+    RouteFit.near => 'NEAR YOUR ROUTE',
+    RouteFit.detour => 'SLIGHT DETOUR',
+  };
+}
+
+/// Kinds of in-app notification (sheets + the Notifications list).
+enum NoticeKind {
+  /// Sender: a courier claimed the request (Figma 164:116).
+  accepted,
+
+  /// Sender: pickup OTP verified (Figma 164:267 "Package Secured").
+  pickedUp,
+
+  /// Sender: courier is at the drop-off (Figma 163:182).
+  arrived,
+
+  /// Sender: delivery OTP verified.
+  delivered,
+
+  /// Sender: the courier dropped the job (Figma 163:76).
+  cancelledByCourier,
+
+  /// Courier: a new request near the active route (Figma 163:129).
+  alongRoute,
+}
+
+class AppNotice {
+  AppNotice({
+    required this.kind,
+    required this.task,
+    DateTime? at,
+    this.detourKm,
     this.detourMinutes,
-  });
+  }) : at = at ?? DateTime.now(),
+       id = '${kind.name}-${task.id}-${DateTime.now().microsecondsSinceEpoch}';
 
   final String id;
-  final String pickup;
-  final String destination;
-  final ParcelType parcel;
-  final int fare;
-  final double distanceKm;
-  final int etaMinutes;
-  final DateTime createdAt;
-  final DeliveryStatus status;
-  final Set<DeliverySource> sources;
-
-  /// Secondary line under the pickup, e.g. "Food · 1-2 items".
-  final String? pickupDetail;
-
-  /// Secondary line under the destination, e.g. "Academic Block".
-  final String? destinationDetail;
-
-  /// Extra minutes on the courier's current route. When set, the feed shows
-  /// the compact "SLIGHT DETOUR" card (Figma "request-card-3").
+  final NoticeKind kind;
+  final OmwTask task;
+  final DateTime at;
+  final double? detourKm;
   final int? detourMinutes;
 
-  bool get isDetour => detourMinutes != null;
+  String get title => switch (kind) {
+    NoticeKind.accepted => 'Courier Assigned!',
+    NoticeKind.pickedUp => 'Package Secured',
+    NoticeKind.arrived => 'Delivery Arrived!',
+    NoticeKind.delivered => 'Delivered',
+    NoticeKind.cancelledByCourier => 'Delivery Cancelled',
+    NoticeKind.alongRoute => 'Along-Your-Route!',
+  };
 
-  DeliveryRequest copyWith({DeliveryStatus? status}) => DeliveryRequest(
-    id: id,
-    pickup: pickup,
-    destination: destination,
-    parcel: parcel,
-    fare: fare,
-    distanceKm: distanceKm,
-    etaMinutes: etaMinutes,
-    createdAt: createdAt,
-    status: status ?? this.status,
-    sources: sources,
-    pickupDetail: pickupDetail,
-    destinationDetail: destinationDetail,
-    detourMinutes: detourMinutes,
-  );
-}
-
-enum NoticeKind { accepted, cancelled }
-
-/// In-app notification for the sender about one of their requests.
-class SenderNotice {
-  const SenderNotice({required this.kind, required this.request, this.reason});
-
-  final NoticeKind kind;
-  final DeliveryRequest request;
-
-  /// Cancellation reason, for [NoticeKind.cancelled].
-  final String? reason;
+  String get body {
+    final runner = task.runnerName ?? 'Your courier';
+    return switch (kind) {
+      NoticeKind.accepted =>
+        '$runner is en route to pick up your order at ${task.shortPickup}.',
+      NoticeKind.pickedUp => '$runner has successfully picked up your item.',
+      NoticeKind.arrived => '$runner is outside with your package.',
+      NoticeKind.delivered =>
+        'Your ${task.parcel.label.toLowerCase()} reached ${task.shortDrop}.',
+      NoticeKind.cancelledByCourier =>
+        'Your courier dropped the job. We are looking for a new partner.',
+      NoticeKind.alongRoute =>
+        'New request at ${task.shortPickup} for ₹${task.wager}.',
+    };
+  }
 }
