@@ -1,220 +1,144 @@
-enum AppMode {
-  order,
-  deliver,
+import '../theme/app_icons.dart';
+
+/// Which side of the marketplace the signed-in user is acting as.
+enum AppRole { sender, courier }
+
+enum SenderTab { home, activity, account }
+
+enum CourierTab { feed, account }
+
+enum ParcelType { documents, small, medium }
+
+extension ParcelTypeX on ParcelType {
+  String get label => switch (this) {
+    ParcelType.documents => 'Documents',
+    ParcelType.small => 'Small Box',
+    ParcelType.medium => 'Medium Box',
+  };
+
+  String get weight => switch (this) {
+    ParcelType.documents => '< 0.5 kg',
+    ParcelType.small => '< 2 kg',
+    ParcelType.medium => 'Up to 5 kg',
+  };
+
+  String get icon => switch (this) {
+    ParcelType.documents => AppIcons.file,
+    ParcelType.small => AppIcons.box,
+    ParcelType.medium => AppIcons.package,
+  };
+
+  /// Suggested fare shown when the parcel type is picked.
+  int get suggestedFare => switch (this) {
+    ParcelType.documents => 80,
+    ParcelType.small => 120,
+    ParcelType.medium => 160,
+  };
 }
 
-enum ScreenType {
-  order,
-  tracking,
-  feed,
-  pending,
-  account,
+enum DeliveryStatus { broadcasted, accepted, delivered }
+
+extension DeliveryStatusX on DeliveryStatus {
+  String get label => switch (this) {
+    DeliveryStatus.broadcasted => 'Looking for courier',
+    DeliveryStatus.accepted => 'Courier on the way',
+    DeliveryStatus.delivered => 'Delivered',
+  };
 }
 
-enum ParcelType {
-  documents,
-  small,
-  medium,
+/// Options in the sender's "Delivery source" dropdown.
+enum DeliverySource { quickCommerce, eCommerce }
+
+extension DeliverySourceX on DeliverySource {
+  String get label => switch (this) {
+    DeliverySource.quickCommerce => 'Quick Commerce',
+    DeliverySource.eCommerce => 'E-Commerce',
+  };
 }
 
-extension ParcelTypeExtension on ParcelType {
-  String get label {
-    switch (this) {
-      case ParcelType.documents:
-        return 'Documents';
-      case ParcelType.small:
-        return 'Small Box';
-      case ParcelType.medium:
-        return 'Medium Box';
-    }
-  }
+/// Filters from the "Pills" component on the delivery feed.
+enum FeedFilter { all, highFare, nearby }
 
-  String get weightSub {
-    switch (this) {
-      case ParcelType.documents:
-        return '< 0.5 kg';
-      case ParcelType.small:
-        return '< 2 kg';
-      case ParcelType.medium:
-        return 'Up to 5 kg';
-    }
-  }
+extension FeedFilterX on FeedFilter {
+  String get label => switch (this) {
+    FeedFilter.all => 'All Deliveries',
+    FeedFilter.highFare => 'High Fare (>150)',
+    FeedFilter.nearby => '< 3km',
+  };
 
-  String get iconAsset {
-    switch (this) {
-      case ParcelType.documents:
-        return 'assets/caf91.svg';
-      case ParcelType.small:
-        return 'assets/e5957.svg';
-      case ParcelType.medium:
-        return 'assets/067ec.svg';
-    }
-  }
+  bool matches(DeliveryRequest r) => switch (this) {
+    FeedFilter.all => true,
+    FeedFilter.highFare => r.fare > 150,
+    FeedFilter.nearby => r.distanceKm < 3,
+  };
 }
 
-class PendingOrder {
-  final String id;
-  final String pickup;
-  final String dropoff;
-  final ParcelType parcelType;
-  int offerPrice;
-  final DateTime broadcastTime;
-  final String windowLabel;
-  bool accepted;
-  int? acceptedPrice;
-  bool countered;
-  int stage;
-  String courierName;
-  String vehicleNo;
-  double distanceKm;
-
-  PendingOrder({
+class DeliveryRequest {
+  const DeliveryRequest({
     required this.id,
     required this.pickup,
-    required this.dropoff,
-    required this.parcelType,
-    required this.offerPrice,
-    required this.broadcastTime,
-    required this.windowLabel,
-    this.accepted = false,
-    this.acceptedPrice,
-    this.countered = false,
-    this.stage = 1,
-    this.courierName = 'Aarav Sharma',
-    this.vehicleNo = 'KA 01 EQ 4920',
-    this.distanceKm = 4.8,
-  });
-
-  PendingOrder copyWith({
-    String? id,
-    String? pickup,
-    String? dropoff,
-    ParcelType? parcelType,
-    int? offerPrice,
-    DateTime? broadcastTime,
-    String? windowLabel,
-    bool? accepted,
-    int? acceptedPrice,
-    bool? countered,
-    int? stage,
-    String? courierName,
-    String? vehicleNo,
-    double? distanceKm,
-  }) {
-    return PendingOrder(
-      id: id ?? this.id,
-      pickup: pickup ?? this.pickup,
-      dropoff: dropoff ?? this.dropoff,
-      parcelType: parcelType ?? this.parcelType,
-      offerPrice: offerPrice ?? this.offerPrice,
-      broadcastTime: broadcastTime ?? this.broadcastTime,
-      windowLabel: windowLabel ?? this.windowLabel,
-      accepted: accepted ?? this.accepted,
-      acceptedPrice: acceptedPrice ?? this.acceptedPrice,
-      countered: countered ?? this.countered,
-      stage: stage ?? this.stage,
-      courierName: courierName ?? this.courierName,
-      vehicleNo: vehicleNo ?? this.vehicleNo,
-      distanceKm: distanceKm ?? this.distanceKm,
-    );
-  }
-}
-
-class Hotspot {
-  final String id;
-  final String title;
-  final String area;
-  final String city;
-  final String tag;
-  final double distanceKm;
-
-  const Hotspot({
-    required this.id,
-    required this.title,
-    required this.area,
-    required this.city,
-    required this.tag,
+    required this.destination,
+    required this.parcel,
+    required this.fare,
     required this.distanceKm,
+    required this.etaMinutes,
+    required this.createdAt,
+    this.status = DeliveryStatus.broadcasted,
+    this.sources = const {},
+    this.pickupDetail,
+    this.destinationDetail,
+    this.detourMinutes,
   });
+
+  final String id;
+  final String pickup;
+  final String destination;
+  final ParcelType parcel;
+  final int fare;
+  final double distanceKm;
+  final int etaMinutes;
+  final DateTime createdAt;
+  final DeliveryStatus status;
+  final Set<DeliverySource> sources;
+
+  /// Secondary line under the pickup, e.g. "Food · 1-2 items".
+  final String? pickupDetail;
+
+  /// Secondary line under the destination, e.g. "Academic Block".
+  final String? destinationDetail;
+
+  /// Extra minutes on the courier's current route. When set, the feed shows
+  /// the compact "SLIGHT DETOUR" card (Figma "request-card-3").
+  final int? detourMinutes;
+
+  bool get isDetour => detourMinutes != null;
+
+  DeliveryRequest copyWith({DeliveryStatus? status}) => DeliveryRequest(
+    id: id,
+    pickup: pickup,
+    destination: destination,
+    parcel: parcel,
+    fare: fare,
+    distanceKm: distanceKm,
+    etaMinutes: etaMinutes,
+    createdAt: createdAt,
+    status: status ?? this.status,
+    sources: sources,
+    pickupDetail: pickupDetail,
+    destinationDetail: destinationDetail,
+    detourMinutes: detourMinutes,
+  );
 }
 
-const List<Hotspot> popularHotspots = [
-  Hotspot(
-    id: '1',
-    title: '742 Evergreen Terrace, Sector 4',
-    area: 'HSR Layout',
-    city: 'Bengaluru',
-    tag: 'residential',
-    distanceKm: 2.4,
-  ),
-  Hotspot(
-    id: '2',
-    title: 'Cyber Gateway Tower B, Hub 9',
-    area: 'Bellandur ORR',
-    city: 'Bengaluru',
-    tag: 'office',
-    distanceKm: 4.8,
-  ),
-  Hotspot(
-    id: '3',
-    title: 'Bluestone Cafe & Roasters',
-    area: 'Koramangala 4th Block, 80ft Rd',
-    city: 'Bengaluru',
-    tag: 'popular',
-    distanceKm: 3.1,
-  ),
-  Hotspot(
-    id: '4',
-    title: 'Green Glen Heights, Apt 402',
-    area: 'Bellandur',
-    city: 'Bengaluru',
-    tag: 'residential',
-    distanceKm: 5.2,
-  ),
-  Hotspot(
-    id: '5',
-    title: 'Indiranagar Metro Station Gate 2',
-    area: '100ft Road, Indiranagar',
-    city: 'Bengaluru',
-    tag: 'metro',
-    distanceKm: 6.5,
-  ),
-  Hotspot(
-    id: '6',
-    title: 'Prestige Tech Park IV',
-    area: 'Marathahalli - Sarjapur ORR',
-    city: 'Bengaluru',
-    tag: 'office',
-    distanceKm: 7.2,
-  ),
-  Hotspot(
-    id: '7',
-    title: 'Phoenix Marketcity Main Entrance',
-    area: 'Whitefield Main Rd',
-    city: 'Bengaluru',
-    tag: 'popular',
-    distanceKm: 12.0,
-  ),
-  Hotspot(
-    id: '8',
-    title: 'Church Street Social & Bookstores',
-    area: 'MG Road / Brigade Rd',
-    city: 'Bengaluru',
-    tag: 'popular',
-    distanceKm: 8.4,
-  ),
-];
+enum NoticeKind { accepted, cancelled }
 
-class ChatMessage {
-  final String id;
-  final String sender; // 'user' or 'courier'
-  final String text;
-  final String time;
+/// In-app notification for the sender about one of their requests.
+class SenderNotice {
+  const SenderNotice({required this.kind, required this.request, this.reason});
 
-  ChatMessage({
-    required this.id,
-    required this.sender,
-    required this.text,
-    required this.time,
-  });
+  final NoticeKind kind;
+  final DeliveryRequest request;
+
+  /// Cancellation reason, for [NoticeKind.cancelled].
+  final String? reason;
 }

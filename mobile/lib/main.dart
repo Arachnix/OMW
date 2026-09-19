@@ -1,18 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+
 import 'models/order_model.dart';
 import 'screens/account_screen.dart';
-import 'screens/feed_screen.dart';
+import 'screens/activity_screen.dart';
+import 'screens/courier_feed_screen.dart';
+import 'screens/landing_screen.dart';
+import 'screens/order_notice_sheets.dart';
 import 'screens/order_screen.dart';
-import 'screens/pending_orders_screen.dart';
-import 'screens/tracking_screen.dart';
 import 'screens/sign_in_screen.dart';
+import 'screens/splash_screen.dart';
 import 'state/app_state.dart';
 import 'theme/app_colors.dart';
+import 'theme/app_icons.dart';
+import 'theme/app_theme.dart';
 import 'widgets/app_bottom_nav.dart';
 import 'widgets/app_header.dart';
-import 'widgets/calling_overlay.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -20,13 +24,13 @@ void main() {
     const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
       statusBarIconBrightness: Brightness.dark,
+      statusBarBrightness: Brightness.light,
+      systemNavigationBarColor: AppColors.surface,
+      systemNavigationBarIconBrightness: Brightness.dark,
     ),
   );
   runApp(
-    ChangeNotifierProvider(
-      create: (_) => AppState(),
-      child: const OmwApp(),
-    ),
+    ChangeNotifierProvider(create: (_) => AppState(), child: const OmwApp()),
   );
 }
 
@@ -36,136 +40,107 @@ class OmwApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'OMW - Delivery Order Management',
+      title: 'OnMyWay',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: true,
-        scaffoldBackgroundColor: AppColors.bgLight,
-        primaryColor: AppColors.primary,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: AppColors.primary,
-          primary: AppColors.primary,
-          secondary: AppColors.primaryLight,
-          surface: Colors.white,
-        ),
-        fontFamily: 'Roboto',
-      ),
-      home: const SignInScreen(),
+      theme: AppTheme.light(),
+      home: const RootNavigator(),
     );
   }
 }
 
-class MainScaffold extends StatelessWidget {
-  const MainScaffold({super.key});
+/// Cross-fades between splash, sign-in, landing and the role shells.
+class RootNavigator extends StatelessWidget {
+  const RootNavigator({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final stage = context.select<AppState, AppStage>((s) => s.stage);
+    return AnimatedSwitcher(
+      duration: AppMotion.slow,
+      switchInCurve: AppMotion.curve,
+      child: switch (stage) {
+        AppStage.splash => const SplashScreen(key: ValueKey('splash')),
+        AppStage.signIn => const SignInScreen(key: ValueKey('signIn')),
+        AppStage.landing => const LandingScreen(key: ValueKey('landing')),
+        AppStage.app => const MainShell(key: ValueKey('app')),
+      },
+    );
+  }
+}
+
+/// Header + tab body + bottom nav. Sender gets Home/Activity/Account; courier
+/// gets Feed/Account, matching the two Figma nav bars.
+class MainShell extends StatelessWidget {
+  const MainShell({super.key});
 
   @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
+    final isSender = state.role == AppRole.sender;
 
-    Widget bodyWidget;
-    switch (state.screen) {
-      case ScreenType.order:
-        bodyWidget = const OrderScreen();
-        break;
-      case ScreenType.tracking:
-        bodyWidget = const TrackingScreen();
-        break;
-      case ScreenType.feed:
-        bodyWidget = const FeedScreen();
-        break;
-      case ScreenType.pending:
-        bodyWidget = const PendingOrdersScreen();
-        break;
-      case ScreenType.account:
-        bodyWidget = const AccountScreen();
-        break;
-    }
+    final (Widget body, Object bodyKey) = isSender
+        ? switch (state.senderTab) {
+            SenderTab.home => (const OrderScreen(), SenderTab.home),
+            SenderTab.activity => (const ActivityScreen(), SenderTab.activity),
+            SenderTab.account => (const AccountScreen(), SenderTab.account),
+          }
+        : switch (state.courierTab) {
+            CourierTab.feed => (const CourierFeedScreen(), CourierTab.feed),
+            CourierTab.account => (const AccountScreen(), CourierTab.account),
+          };
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFE2E8F0),
-      body: Center(
-        child: Container(
-          constraints: const BoxConstraints(maxWidth: 440),
-          decoration: BoxDecoration(
-            color: AppColors.bgLight,
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.1),
-                blurRadius: 30,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Stack(
-            children: [
-              // Main screen layout
-              Column(
-                children: [
-                  const AppHeader(),
-                  Expanded(
-                    child: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 200),
-                      child: KeyedSubtree(
-                        key: ValueKey(state.screen),
-                        child: bodyWidget,
-                      ),
-                    ),
-                  ),
-                  const AppBottomNav(),
-                ],
-              ),
-
-          // Floating Toast Notification
-          if (state.toastMessage != null)
-            Positioned(
-              top: 72,
-              left: 20,
-              right: 20,
-              child: Center(
-                child: Material(
-                  elevation: 6,
-                  borderRadius: BorderRadius.circular(24),
-                  color: AppColors.navyDark,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 10),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          width: 8,
-                          height: 8,
-                          decoration: const BoxDecoration(
-                            color: AppColors.primaryLight,
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Flexible(
-                          child: Text(
-                            state.toastMessage!,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                            ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
+    final destinations = isSender
+        ? [
+            const NavDestination(icon: AppIcons.truck, label: 'Home'),
+            NavDestination(
+              icon: AppIcons.clipboardCheck,
+              label: 'Activity',
+              badge: state.openRequestCount,
             ),
+            const NavDestination(icon: AppIcons.idCard, label: 'Account'),
+          ]
+        : const [
+            NavDestination(icon: AppIcons.truck, label: 'Feed'),
+            NavDestination(icon: AppIcons.idCard, label: 'Account'),
+          ];
 
-          // Calling Overlay
-          const CallingOverlay(),
+    // Hide the nav while the keyboard is up so inputs keep the space.
+    final keyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
+
+    final shellBody = SafeArea(
+      bottom: false,
+      child: Column(
+        children: [
+          AppHeader(
+            onMascotTap: state.goToLanding,
+            onAvatarTap: state.openAccount,
+          ),
+          Expanded(
+            child: AnimatedSwitcher(
+              duration: AppMotion.medium,
+              child: KeyedSubtree(key: ValueKey(bodyKey), child: body),
+            ),
+          ),
         ],
       ),
-    ),
-  ),
-);
-}
+    );
+
+    return Scaffold(
+      backgroundColor: AppColors.surface,
+      // Sender notices ("Order Accepted" / "Order Cancelled") appear over
+      // the sender shell only.
+      body: isSender ? SenderNoticeHost(child: shellBody) : shellBody,
+      bottomNavigationBar: keyboardOpen
+          ? null
+          : AppBottomNav(
+              destinations: destinations,
+              selectedIndex: isSender
+                  ? state.senderTab.index
+                  : state.courierTab.index,
+              onSelected: (i) => isSender
+                  ? state.setSenderTab(SenderTab.values[i])
+                  : state.setCourierTab(CourierTab.values[i]),
+            ),
+    );
+  }
 }

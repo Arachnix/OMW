@@ -1,92 +1,75 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
-import 'package:provider/provider.dart';
-import '../models/order_model.dart';
-import '../state/app_state.dart';
-import '../theme/app_colors.dart';
 
+import '../theme/app_colors.dart';
+import '../theme/app_text.dart';
+import 'svg_icon.dart';
+
+class NavDestination {
+  const NavDestination({
+    this.icon,
+    this.glyph,
+    required this.label,
+    this.badge = 0,
+  }) : assert(icon != null || glyph != null);
+
+  /// Figma SVG path (preferred).
+  final String? icon;
+
+  /// Material stand-in for icons not exported from Figma yet (`AppGlyphs`).
+  final IconData? glyph;
+  final String label;
+  final int badge;
+}
+
+/// How the active tab is marked.
+enum NavIndicator {
+  /// 24×2 ink bar under the label (app shells).
+  underline,
+
+  /// Ink disc behind a white icon (landing, "onmyway-home-screen").
+  disc,
+}
+
+/// "bottom-nav-bar" from Figma: icon, label and a 24×2 active indicator.
+/// Inactive tabs are drawn at 50% opacity.
 class AppBottomNav extends StatelessWidget {
-  const AppBottomNav({super.key});
+  const AppBottomNav({
+    super.key,
+    required this.destinations,
+    required this.selectedIndex,
+    required this.onSelected,
+    this.indicator = NavIndicator.underline,
+  });
+
+  final List<NavDestination> destinations;
+  final int selectedIndex;
+  final ValueChanged<int> onSelected;
+  final NavIndicator indicator;
 
   @override
   Widget build(BuildContext context) {
-    final state = context.watch<AppState>();
-    final mode = state.mode;
-    final screen = state.screen;
-    final pendingCount = state.activePendingOrders.length;
-
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.bgLight.withOpacity(0.95),
-        border: Border(
-          top: BorderSide(
-            color: Colors.black.withOpacity(0.06),
-            width: 1,
-          ),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF0F172A).withOpacity(0.06),
-            blurRadius: 16,
-            offset: const Offset(0, -4),
-          ),
-        ],
-      ),
+    return Material(
+      color: AppColors.surface,
       child: SafeArea(
         top: false,
-        child: SizedBox(
-          height: 68,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.xxl,
+            vertical: 10,
+          ),
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: mode == AppMode.order
-                ? [
-                    _NavItem(
-                      iconAsset: 'assets/62ba6.svg',
-                      fallbackIcon: Icons.home_rounded,
-                      label: 'Home',
-                      active: screen == ScreenType.order,
-                      onTap: () => state.setScreen(ScreenType.order),
-                    ),
-                    _NavItem(
-                      iconAsset: 'assets/53e65.svg',
-                      fallbackIcon: Icons.receipt_long_rounded,
-                      label: 'Activity',
-                      badge: pendingCount > 0 ? '$pendingCount' : null,
-                      active: screen == ScreenType.pending ||
-                          screen == ScreenType.tracking,
-                      onTap: () => state.setScreen(ScreenType.pending),
-                    ),
-                    _NavItem(
-                      iconAsset: 'assets/374f1.svg',
-                      fallbackIcon: Icons.account_circle_rounded,
-                      label: 'Account',
-                      active: screen == ScreenType.account,
-                      onTap: () => state.setScreen(ScreenType.account),
-                    ),
-                  ]
-                : [
-                    _NavItem(
-                      iconAsset: 'assets/d165d.svg',
-                      fallbackIcon: Icons.dynamic_feed_rounded,
-                      label: 'Live Feed',
-                      active: screen == ScreenType.feed,
-                      onTap: () => state.setScreen(ScreenType.feed),
-                    ),
-                    _NavItem(
-                      iconAsset: 'assets/53e65.svg',
-                      fallbackIcon: Icons.moped_rounded,
-                      label: 'Deliveries',
-                      active: screen == ScreenType.tracking,
-                      onTap: () => state.setScreen(ScreenType.tracking),
-                    ),
-                    _NavItem(
-                      iconAsset: 'assets/374f1.svg',
-                      fallbackIcon: Icons.account_balance_wallet_rounded,
-                      label: 'Earnings',
-                      active: screen == ScreenType.account,
-                      onTap: () => state.setScreen(ScreenType.account),
-                    ),
-                  ],
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              for (var i = 0; i < destinations.length; i++)
+                _NavItem(
+                  destination: destinations[i],
+                  selected: i == selectedIndex,
+                  index: i,
+                  count: destinations.length,
+                  indicator: indicator,
+                  onTap: () => onSelected(i),
+                ),
+            ],
           ),
         ),
       ),
@@ -95,105 +78,96 @@ class AppBottomNav extends StatelessWidget {
 }
 
 class _NavItem extends StatelessWidget {
-  final String iconAsset;
-  final IconData fallbackIcon;
-  final String label;
-  final bool active;
-  final String? badge;
-  final VoidCallback onTap;
-
   const _NavItem({
-    required this.iconAsset,
-    required this.fallbackIcon,
-    required this.label,
-    required this.active,
-    this.badge,
+    required this.destination,
+    required this.selected,
+    required this.index,
+    required this.count,
+    required this.indicator,
     required this.onTap,
   });
 
+  final NavDestination destination;
+  final bool selected;
+  final int index;
+  final int count;
+  final NavIndicator indicator;
+  final VoidCallback onTap;
+
+  Widget _icon(Color color) {
+    final svg = destination.icon;
+    return svg != null
+        ? SvgIcon(svg, size: 20, color: color)
+        : Icon(destination.glyph, size: 20, color: color);
+  }
+
   @override
   Widget build(BuildContext context) {
-    const activeColor = AppColors.primary;
-    const inactiveColor = AppColors.textMuted;
-
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: SizedBox(
-        width: 76,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Stack(
-              clipBehavior: Clip.none,
+    final badge = destination.badge;
+    return Semantics(
+      button: true,
+      selected: selected,
+      label:
+          '${destination.label}, tab ${index + 1} of $count'
+          '${badge > 0 ? ', $badge open' : ''}',
+      excludeSemantics: true,
+      child: InkResponse(
+        onTap: onTap,
+        radius: 36,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints.tightFor(width: 64)
+              .copyWith(minHeight: 48),
+          child: AnimatedOpacity(
+            duration: AppMotion.medium,
+            // The disc style keeps inactive tabs at full ink, as in Figma.
+            opacity: selected || indicator == NavIndicator.disc ? 1 : 0.5,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                AnimatedScale(
-                  scale: active ? 1.12 : 1.0,
-                  duration: const Duration(milliseconds: 200),
-                  child: SvgPicture.asset(
-                    iconAsset,
-                    width: 22,
-                    height: 22,
-                    colorFilter: ColorFilter.mode(
-                      active ? activeColor : inactiveColor,
-                      BlendMode.srcIn,
-                    ),
-                    placeholderBuilder: (context) => Icon(
-                      fallbackIcon,
-                      size: 22,
-                      color: active ? activeColor : inactiveColor,
-                    ),
-                  ),
-                ),
-                if (badge != null)
-                  Positioned(
-                    top: -4,
-                    right: -10,
-                    child: Container(
-                      padding: const EdgeInsets.all(2),
-                      constraints: const BoxConstraints(
-                        minWidth: 16,
-                        minHeight: 16,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.primaryLight,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 2),
-                      ),
-                      child: Center(
-                        child: Text(
-                          badge!,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 9,
-                            fontWeight: FontWeight.w900,
+                Badge(
+                  isLabelVisible: badge > 0,
+                  label: Text('$badge'),
+                  backgroundColor: AppColors.ink,
+                  textColor: AppColors.surface,
+                  child: indicator == NavIndicator.disc
+                      ? AnimatedContainer(
+                          duration: AppMotion.medium,
+                          curve: AppMotion.curve,
+                          width: 32,
+                          height: 32,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: selected ? AppColors.ink : AppColors.surface,
+                            shape: BoxShape.circle,
                           ),
-                        ),
-                      ),
+                          child: _icon(
+                            selected ? AppColors.surface : AppColors.ink,
+                          ),
+                        )
+                      : _icon(AppColors.ink),
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  destination.label,
+                  style: selected ? AppText.navActive : AppText.navInactive,
+                ),
+                if (indicator == NavIndicator.underline) ...[
+                  const SizedBox(height: AppSpacing.xs),
+                  AnimatedContainer(
+                    duration: AppMotion.medium,
+                    curve: AppMotion.curve,
+                    width: selected ? 24 : 0,
+                    height: 2,
+                    decoration: BoxDecoration(
+                      color: AppColors.ink,
+                      borderRadius: BorderRadius.circular(1),
                     ),
                   ),
+                ],
               ],
             ),
-            const SizedBox(height: 3),
-            Text(
-              label,
-              style: TextStyle(
-                color: active ? activeColor : inactiveColor,
-                fontSize: 11,
-                fontWeight: active ? FontWeight.bold : FontWeight.w500,
-              ),
-            ),
-            const SizedBox(height: 2),
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              height: 3,
-              width: active ? 16 : 0,
-              decoration: BoxDecoration(
-                color: activeColor,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );

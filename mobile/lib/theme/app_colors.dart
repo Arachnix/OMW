@@ -1,49 +1,81 @@
 import 'package:flutter/material.dart';
 
+/// Colour tokens extracted from the OMW Figma file (node 72:282).
+///
+/// The design is strictly monochrome: black ink on white, with two light
+/// greys for filled surfaces and two for hairlines.
 class AppColors {
-  // Brand Greens
-  static const Color primary = Color(0xFF006C49);
-  static const Color primaryDark = Color(0xFF005237);
-  static const Color primaryLight = Color(0xFF10B981);
-  static const Color accentGreen = Color(0xFF6FFBBE);
-  static const Color greenLightBg = Color(0xFFEFFBF5);
+  AppColors._();
 
-  // Navy / Dark
-  static const Color navyDark = Color(0xFF0B1C30);
-  static const Color navyMedium = Color(0xFF213145);
-  static const Color textMuted = Color(0xFF565E74);
-  static const Color textBody = Color(0xFF3C4A42);
+  static const Color ink = Color(0xFF000000);
+  static const Color surface = Color(0xFFFFFFFF);
 
-  // Soft Canvas & Cards
-  static const Color bgLight = Color(0xFFF8F9FF);
-  static const Color cardLight = Color(0xFFEFF4FF);
-  static const Color cardBorder = Color(0xFFD3E4FE);
-  static const Color cardHover = Color(0xFFE5EEFF);
+  /// Selected cargo tile, custom-amount pill, icon discs (`#F5F5F5`).
+  static const Color fillMuted = Color(0xFFF5F5F5);
 
-  // Amber / Surge
-  static const Color amberBadge = Color(0xFFFFDDB8);
-  static const Color amberText = Color(0xFF2A1700);
-  static const Color amberBorder = Color(0xFFFFCC99);
+  /// Secondary auth buttons on the sign-in screen (`#EEEEEE`).
+  static const Color fillButton = Color(0xFFEEEEEE);
 
-  // Alert / Danger
-  static const Color dangerBg = Color(0xFFFFDAD6);
-  static const Color dangerText = Color(0xFF93000A);
-  static const Color dangerRed = Color(0xFFE11D48);
+  /// Divider rules and outlined filter pills (`#E6E6E6`).
+  static const Color divider = Color(0xFFE6E6E6);
 
-  // Shadows
-  static List<BoxShadow> softShadow = [
-    BoxShadow(
-      color: Colors.black.withValues(alpha: 0.04),
-      blurRadius: 12,
-      offset: const Offset(0, 4),
-    ),
-  ];
+  /// Text-field outline (`#E0E0E0`).
+  static const Color fieldBorder = Color(0xFFE0E0E0);
 
-  static List<BoxShadow> mediumShadow = [
-    BoxShadow(
-      color: const Color(0xFF0B1C30).withValues(alpha: 0.08),
-      blurRadius: 16,
-      offset: const Offset(0, 6),
-    ),
-  ];
+  /// Placeholder and helper copy (`#828282`).
+  static const Color textMuted = Color(0xFF828282);
+
+  /// Near-black used by the "All Deliveries" pill (rgba 0,0,0,.9).
+  static const Color inkSoft = Color(0xE6000000);
+
+  static const Color error = Color(0xFFB3261E);
+
+  /// Dim overlay behind notification sheets (rgba 15,23,42,.6 in Figma).
+  static const Color scrim = Color(0x990F172A);
+
+  /// Figma renders secondary copy as ink at reduced opacity.
+  static Color inkAt(double opacity) => ink.withValues(alpha: opacity);
+}
+
+/// Spacing scale used across the Figma frames.
+class AppSpacing {
+  AppSpacing._();
+
+  static const double xxs = 2;
+  static const double xs = 4;
+  static const double sm = 8;
+  static const double md = 12;
+  static const double lg = 16;
+  static const double xl = 20;
+  static const double xxl = 24;
+
+  /// Horizontal page gutter of the app frames.
+  static const double gutter = 16;
+
+  /// Horizontal page gutter of the sign-in frames.
+  static const double authGutter = 24;
+}
+
+/// Corner radii and stroke weights used across the Figma frames.
+class AppRadii {
+  AppRadii._();
+
+  static const double field = 8;
+  static const double tile = 12;
+  static const double card = 16;
+  static const double pill = 100;
+
+  static const double hairline = 1;
+  static const double stroke = 1.5;
+  static const double strokeBold = 2;
+}
+
+/// Motion tokens. Kept short and restrained.
+class AppMotion {
+  AppMotion._();
+
+  static const Duration fast = Duration(milliseconds: 150);
+  static const Duration medium = Duration(milliseconds: 220);
+  static const Duration slow = Duration(milliseconds: 400);
+  static const Curve curve = Curves.easeOutCubic;
 }

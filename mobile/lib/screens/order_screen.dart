@@ -1,672 +1,510 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+
 import '../models/order_model.dart';
 import '../state/app_state.dart';
 import '../theme/app_colors.dart';
-import '../widgets/address_picker_modal.dart';
+import '../theme/app_icons.dart';
+import '../theme/app_text.dart';
+import '../widgets/address_edit_modal.dart';
+import '../widgets/broadcast_confirmation_sheet.dart';
+import '../widgets/omw_card.dart';
+import '../widgets/parcel_option_card.dart';
+import '../widgets/pill_button.dart';
+import '../widgets/route_card.dart';
+import '../widgets/svg_icon.dart';
 
-class OrderScreen extends StatefulWidget {
+/// Sender home: the "onmyway-courier-screen" Figma frame.
+class OrderScreen extends StatelessWidget {
   const OrderScreen({super.key});
 
-  @override
-  State<OrderScreen> createState() => _OrderScreenState();
-}
-
-class _OrderScreenState extends State<OrderScreen> {
-  late TextEditingController _priceController;
-
-  @override
-  void initState() {
-    super.initState();
-    _priceController = TextEditingController(
-      text: context.read<AppState>().offerPrice.toString(),
+  Future<void> _editAddress(
+    BuildContext context, {
+    required bool pickup,
+  }) async {
+    final state = context.read<AppState>();
+    final result = await AddressEditModal.show(
+      context,
+      title: pickup ? 'Pickup Spot' : 'Delivery Destination',
+      initial: pickup ? state.pickup : state.destination,
     );
+    if (result == null) return;
+    pickup ? state.setPickup(result) : state.setDestination(result);
   }
 
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    final price = context.watch<AppState>().offerPrice;
-    if (_priceController.text != price.toString()) {
-      _priceController.text = price.toString();
-    }
-  }
-
-  @override
-  void dispose() {
-    _priceController.dispose();
-    super.dispose();
+  Future<void> _broadcast(BuildContext context) async {
+    FocusScope.of(context).unfocus();
+    final state = context.read<AppState>();
+    final request = await state.broadcast();
+    if (request == null || !context.mounted) return;
+    final viewActivity = await BroadcastConfirmationSheet.show(
+      context,
+      request,
+    );
+    if (viewActivity == true) state.setSenderTab(SenderTab.activity);
   }
 
   @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Route Card
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(28),
-              border: Border.all(color: Colors.grey.shade200),
-              boxShadow: AppColors.softShadow,
-            ),
-            child: Column(
-              children: [
-                // Top Header
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Flexible(
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Container(
-                            width: 8,
-                            height: 8,
-                            decoration: const BoxDecoration(
-                              color: AppColors.primaryLight,
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          const Flexible(
-                            child: Text(
-                              'FAST COURIER MATCH',
-                              style: TextStyle(
-                                color: AppColors.primary,
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 0.5,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: AppColors.cardHover,
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Row(
-                        children: [
-                          SvgPicture.asset(
-                            'assets/6ab70.svg',
-                            width: 10,
-                            height: 10,
-                            colorFilter: const ColorFilter.mode(
-                              AppColors.textBody,
-                              BlendMode.srcIn,
-                            ),
-                            placeholderBuilder: (_) => const Icon(
-                              Icons.bolt_rounded,
-                              size: 12,
-                              color: AppColors.textBody,
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          const Text(
-                            '~18 mins dispatch',
-                            style: TextStyle(
-                              color: AppColors.textBody,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-
-                // Address Inputs with connector
-                Stack(
-                  children: [
-                    Positioned(
-                      left: 17,
-                      top: 24,
-                      bottom: 24,
-                      child: Container(
-                        width: 2,
-                        decoration: BoxDecoration(
-                          border: Border(
-                            left: BorderSide(
-                              color: Colors.grey.shade400,
-                              width: 2,
-                              style: BorderStyle.solid,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    Column(
-                      children: [
-                        // Pickup
-                        InkWell(
-                          onTap: () {
-                            AddressPickerModal.show(
-                              context: context,
-                              title: 'Select Pickup Spot',
-                              currentValue: state.pickup,
-                              onSelect: (addr, dist) => state.setPickup(addr),
-                            );
-                          },
-                          borderRadius: BorderRadius.circular(16),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 10, vertical: 10),
-                            decoration: BoxDecoration(
-                              color: AppColors.cardLight,
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(
-                                color: AppColors.cardBorder.withOpacity(0.5),
-                              ),
-                            ),
-                            child: Row(
-                              children: [
-                                Container(
-                                  width: 32,
-                                  height: 32,
-                                  decoration: const BoxDecoration(
-                                    color: AppColors.navyDark,
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: const Icon(
-                                    Icons.my_location_rounded,
-                                    color: Colors.white,
-                                    size: 16,
-                                  ),
-                                ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      const Text(
-                                        'Pickup Spot',
-                                        style: TextStyle(
-                                          color: AppColors.textMuted,
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 1),
-                                      Text(
-                                        state.pickup,
-                                        style: const TextStyle(
-                                          color: AppColors.navyDark,
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const Icon(
-                                  Icons.chevron_right_rounded,
-                                  color: Colors.grey,
-                                  size: 20,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-
-                        // Dropoff
-                        InkWell(
-                          onTap: () {
-                            AddressPickerModal.show(
-                              context: context,
-                              title: 'Select Delivery Destination',
-                              currentValue: state.dropoff,
-                              onSelect: (addr, dist) =>
-                                  state.setDropoff(addr, dist),
-                            );
-                          },
-                          borderRadius: BorderRadius.circular(16),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 10, vertical: 10),
-                            decoration: BoxDecoration(
-                              color: AppColors.cardLight,
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(
-                                color: AppColors.cardBorder.withOpacity(0.5),
-                              ),
-                            ),
-                            child: Row(
-                              children: [
-                                Container(
-                                  width: 32,
-                                  height: 32,
-                                  decoration: const BoxDecoration(
-                                    color: AppColors.primaryLight,
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: const Icon(
-                                    Icons.place_rounded,
-                                    color: Colors.white,
-                                    size: 18,
-                                  ),
-                                ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      const Text(
-                                        'Delivery Destination',
-                                        style: TextStyle(
-                                          color: AppColors.textMuted,
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 1),
-                                      Text(
-                                        state.dropoff,
-                                        style: const TextStyle(
-                                          color: AppColors.navyDark,
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const Icon(
-                                  Icons.chevron_right_rounded,
-                                  color: Colors.grey,
-                                  size: 20,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 18),
-
-          // Parcel Cargo Selection
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return ListView(
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.gutter,
+        AppSpacing.xs,
+        AppSpacing.gutter,
+        AppSpacing.xl,
+      ),
+      children: [
+        OmwCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text(
-                'Parcel Cargo',
-                style: TextStyle(
-                  color: AppColors.navyDark,
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
+              const CardEyebrow(
+                label: 'FAST COURIER MATCH',
+                trailing: EtaBadge(minutes: 18),
               ),
-              Row(
-                children: const [
-                  Icon(Icons.shield_outlined,
-                      size: 14, color: AppColors.primary),
-                  SizedBox(width: 4),
-                  Text(
-                    'Insurance covered',
-                    style: TextStyle(
-                      color: AppColors.primary,
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
+              const SizedBox(height: AppSpacing.md),
+              RouteStops(
+                pickup: state.pickup,
+                destination: state.destination,
+                onEditPickup: () => _editAddress(context, pickup: true),
+                onEditDestination: () => _editAddress(context, pickup: false),
               ),
             ],
           ),
-          const SizedBox(height: 10),
+        ),
+        const SizedBox(height: AppSpacing.lg),
+        _ParcelCargo(
+          selected: state.parcel,
+          onSelect: state.selectParcel,
+          onClear: state.parcel == null ? null : state.clearParcel,
+        ),
+        const SizedBox(height: AppSpacing.lg),
+        _OfferCard(offer: state.offer),
+        const SizedBox(height: AppSpacing.lg),
+        PillButton(
+          label: 'Broadcast Delivery Request for ₹${state.offer}',
+          leading: const Icon(
+            Icons.play_arrow_outlined,
+            color: AppColors.surface,
+            size: 20,
+          ),
+          busy: state.broadcasting,
+          onPressed: state.canBroadcast ? () => _broadcast(context) : null,
+        ),
+        const SizedBox(height: AppSpacing.lg),
+        AnimatedSwitcher(
+          duration: AppMotion.fast,
+          child: Text(
+            state.parcel == null
+                ? 'Choose a parcel size to continue'
+                : 'Courier keeps 100% of fair value bids • Zero deduction',
+            key: ValueKey(state.parcel == null),
+            textAlign: TextAlign.center,
+            style: AppText.caption.copyWith(color: AppColors.inkAt(0.7)),
+          ),
+        ),
+      ],
+    );
+  }
+}
 
-          Row(
-            children: ParcelType.values.map((pType) {
-              final isSelected = state.parcelType == pType;
-              return Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4.0),
-                  child: InkWell(
-                    onTap: () => state.setParcelType(pType),
-                    borderRadius: BorderRadius.circular(20),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      decoration: BoxDecoration(
-                        color: isSelected ? AppColors.cardBorder : Colors.white,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: isSelected
-                              ? AppColors.primary
-                              : Colors.grey.shade200,
-                          width: isSelected ? 1.5 : 1,
-                        ),
-                        boxShadow: isSelected
-                            ? [
-                                BoxShadow(
-                                  color: AppColors.primary.withOpacity(0.12),
-                                  blurRadius: 8,
-                                  offset: const Offset(0, 2),
-                                )
-                              ]
-                            : AppColors.softShadow,
+class _ParcelCargo extends StatelessWidget {
+  const _ParcelCargo({
+    required this.selected,
+    required this.onSelect,
+    required this.onClear,
+  });
+
+  final ParcelType? selected;
+  final ValueChanged<ParcelType> onSelect;
+  final VoidCallback? onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Expanded(
+              child: Semantics(
+                header: true,
+                child: Text('Parcel Cargo', style: AppText.sectionTitle),
+              ),
+            ),
+            AnimatedOpacity(
+              duration: AppMotion.fast,
+              opacity: onClear == null ? 0.3 : 1,
+              child: IconButton(
+                onPressed: onClear,
+                tooltip: 'Clear parcel selection',
+                visualDensity: VisualDensity.compact,
+                padding: EdgeInsets.zero,
+                icon: const SvgIcon(AppIcons.circleX, size: 32),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (final type in ParcelType.values) ...[
+                if (type != ParcelType.values.first)
+                  const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: ParcelOptionCard(
+                    type: type,
+                    selected: type == selected,
+                    onTap: () => onSelect(type),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// "delivery-offer-card" (Figma 180:176): tap-to-edit price with an
+/// underline, plus the "Delivery source" dropdown.
+class _OfferCard extends StatefulWidget {
+  const _OfferCard({required this.offer});
+
+  final int offer;
+
+  @override
+  State<_OfferCard> createState() => _OfferCardState();
+}
+
+class _OfferCardState extends State<_OfferCard> {
+  late final TextEditingController _controller = TextEditingController(
+    text: '${widget.offer}',
+  );
+  final FocusNode _focus = FocusNode();
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _focus.addListener(() {
+      if (!_focus.hasFocus) {
+        _commit();
+      } else if (mounted) {
+        setState(() {});
+      }
+    });
+  }
+
+  @override
+  void didUpdateWidget(covariant _OfferCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Offer changed elsewhere (e.g. a new parcel size): mirror it.
+    if (oldWidget.offer != widget.offer && !_focus.hasFocus) {
+      _controller.text = '${widget.offer}';
+      _error = null;
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _focus.dispose();
+    super.dispose();
+  }
+
+  void _commit() {
+    if (!mounted) return;
+    final error = context.read<AppState>().setOffer(_controller.text);
+    setState(() => _error = error);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return OmwCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Semantics(
+            header: true,
+            child: Text(
+              'YOUR DELIVERY OFFER',
+              textAlign: TextAlign.center,
+              style: AppText.cardEyebrow,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            'Set your price for this delivery',
+            textAlign: TextAlign.center,
+            style: AppText.caption.copyWith(color: AppColors.inkAt(0.6)),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Center(
+            child: _EditablePrice(
+              controller: _controller,
+              focus: _focus,
+              hasError: _error != null,
+            ),
+          ),
+          AnimatedSize(
+            duration: AppMotion.fast,
+            child: _error == null
+                ? const SizedBox(width: double.infinity)
+                : Padding(
+                    padding: const EdgeInsets.only(top: AppSpacing.sm),
+                    child: Semantics(
+                      liveRegion: true,
+                      child: Text(
+                        _error!,
+                        textAlign: TextAlign.center,
+                        style: AppText.caption.copyWith(color: AppColors.error),
                       ),
-                      child: Column(
-                        children: [
-                          Container(
-                            width: 40,
-                            height: 40,
-                            decoration: BoxDecoration(
-                              color: isSelected
-                                  ? AppColors.primary
-                                  : AppColors.cardLight,
-                              shape: BoxShape.circle,
-                            ),
-                            child: Center(
-                              child: SvgPicture.asset(
-                                pType.iconAsset,
-                                width: 18,
-                                height: 18,
-                                colorFilter: ColorFilter.mode(
-                                  isSelected
-                                      ? Colors.white
-                                      : AppColors.navyDark,
-                                  BlendMode.srcIn,
-                                ),
-                                placeholderBuilder: (_) => Icon(
-                                  Icons.inventory_2_rounded,
-                                  size: 18,
-                                  color: isSelected
-                                      ? Colors.white
-                                      : AppColors.navyDark,
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            pType.label,
-                            style: const TextStyle(
-                              color: AppColors.navyDark,
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            pType.weightSub,
-                            style: const TextStyle(
-                              color: AppColors.textMuted,
-                              fontSize: 10,
-                            ),
-                          ),
-                        ],
+                    ),
+                  ),
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          const _DeliverySourceDropdown(),
+        ],
+      ),
+    );
+  }
+}
+
+/// "editable-price-wrapper": the price is itself the input. A 2px cursor at
+/// 60% ink and a 1.5px underline at 20% ink mark it as editable.
+class _EditablePrice extends StatelessWidget {
+  const _EditablePrice({
+    required this.controller,
+    required this.focus,
+    required this.hasError,
+  });
+
+  final TextEditingController controller;
+  final FocusNode focus;
+  final bool hasError;
+
+  @override
+  Widget build(BuildContext context) {
+    final underline = hasError
+        ? AppColors.error
+        : AppColors.inkAt(focus.hasFocus ? 0.6 : 0.2);
+    return Semantics(
+      label: 'Offer amount in rupees',
+      child: IntrinsicWidth(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('₹', style: AppText.price),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(minWidth: 40),
+                  child: IntrinsicWidth(
+                    child: TextField(
+                      controller: controller,
+                      focusNode: focus,
+                      style: AppText.price,
+                      keyboardType: TextInputType.number,
+                      textInputAction: TextInputAction.done,
+                      cursorColor: AppColors.inkAt(0.6),
+                      cursorWidth: 2,
+                      cursorHeight: 30,
+                      cursorRadius: const Radius.circular(1),
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                        LengthLimitingTextInputFormatter(5),
+                      ],
+                      // Losing focus commits the value (see _OfferCardState).
+                      onSubmitted: (_) => focus.unfocus(),
+                      decoration: const InputDecoration(
+                        isDense: true,
+                        filled: false,
+                        border: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                        contentPadding: EdgeInsets.zero,
                       ),
                     ),
                   ),
                 ),
-              );
-            }).toList(),
-          ),
-          const SizedBox(height: 18),
-
-          // Price Setting Card
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(28),
-              border: Border.all(color: Colors.grey.shade200),
-              boxShadow: AppColors.softShadow,
+              ],
             ),
-            child: Column(
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: const [
-                          Text(
-                            'YOUR DELIVERY OFFER',
-                            style: TextStyle(
-                              color: AppColors.textMuted,
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 0.5,
-                            ),
-                          ),
-                          SizedBox(height: 2),
-                          Text(
-                            'Couriers compete for fair value bids',
-                            style: TextStyle(
-                              color: AppColors.textBody,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: AppColors.greenLightBg,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: AppColors.accentGreen),
-                      ),
-                      child: const Text(
-                        'Zero Deduction',
-                        style: TextStyle(
-                          color: AppColors.primary,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
+            const SizedBox(height: AppSpacing.xs),
+            AnimatedContainer(
+              duration: AppMotion.fast,
+              height: AppRadii.stroke,
+              decoration: BoxDecoration(
+                color: underline,
+                borderRadius: BorderRadius.circular(1),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
-                // Quick Increment buttons & Big Fare
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.remove_rounded, size: 24),
-                      style: IconButton.styleFrom(
-                        backgroundColor: AppColors.cardLight,
-                        foregroundColor: AppColors.navyDark,
-                        padding: const EdgeInsets.all(12),
-                      ),
-                      onPressed: () => state.adjustOfferPrice(-10),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        children: [
-                          Text(
-                            '₹${state.offerPrice}',
-                            style: const TextStyle(
-                              color: AppColors.navyDark,
-                              fontSize: 36,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: -1,
-                            ),
-                          ),
-                          const Text(
-                            'Fair estimate ₹110 - ₹140',
-                            style: TextStyle(
-                              color: Colors.grey,
-                              fontSize: 11,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    IconButton(
-                      icon: const Icon(Icons.add_rounded, size: 24),
-                      style: IconButton.styleFrom(
-                        backgroundColor: AppColors.cardLight,
-                        foregroundColor: AppColors.navyDark,
-                        padding: const EdgeInsets.all(12),
-                      ),
-                      onPressed: () => state.adjustOfferPrice(10),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
+/// "delivery-source-dropdown": collapsible multi-select of where the order
+/// comes from.
+class _DeliverySourceDropdown extends StatefulWidget {
+  const _DeliverySourceDropdown();
 
-                // Custom amount
-                Container(
+  @override
+  State<_DeliverySourceDropdown> createState() =>
+      _DeliverySourceDropdownState();
+}
+
+class _DeliverySourceDropdownState extends State<_DeliverySourceDropdown> {
+  // Figma shows the list expanded.
+  bool _open = true;
+
+  @override
+  Widget build(BuildContext context) {
+    final state = context.watch<AppState>();
+    final radius = BorderRadius.circular(AppRadii.card);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.fillMuted,
+        borderRadius: radius,
+        border: Border.all(color: AppColors.ink),
+      ),
+      child: Material(
+        type: MaterialType.transparency,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Semantics(
+              button: true,
+              expanded: _open,
+              label: 'Delivery source',
+              excludeSemantics: true,
+              child: InkWell(
+                borderRadius: radius,
+                onTap: () => setState(() => _open = !_open),
+                child: Padding(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 14, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: AppColors.cardLight,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: AppColors.cardBorder),
+                    horizontal: AppSpacing.lg,
+                    vertical: 10,
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.tune_rounded,
-                          size: 16, color: AppColors.navyDark),
-                      const SizedBox(width: 8),
-                      const Text(
-                        'Custom Offer:',
-                        style: TextStyle(
-                          color: AppColors.navyDark,
-                          fontSize: 13,
+                      Expanded(
+                        child: Text(
+                          'Delivery source',
+                          style: AppText.inputLabel,
                         ),
                       ),
-                      const Spacer(),
-                      const Text(
-                        '₹ ',
-                        style: TextStyle(
-                          color: AppColors.textBody,
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      Container(
-                        width: 70,
-                        padding: const EdgeInsets.symmetric(horizontal: 8),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.grey.shade300),
-                        ),
-                        child: TextField(
-                          controller: _priceController,
-                          keyboardType: TextInputType.number,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                            color: AppColors.navyDark,
-                          ),
-                          decoration: const InputDecoration(
-                            border: InputBorder.none,
-                            isDense: true,
-                            contentPadding: EdgeInsets.symmetric(vertical: 4),
-                          ),
-                          onChanged: (val) {
-                            final parsed = int.tryParse(val);
-                            if (parsed != null && parsed > 0) {
-                              state.setOfferPrice(parsed);
-                            }
-                          },
+                      AnimatedRotation(
+                        duration: AppMotion.medium,
+                        curve: AppMotion.curve,
+                        turns: _open ? 0 : -0.25,
+                        // Inter has no ▾ glyph; Material's filled caret matches it.
+                        child: const Icon(
+                          Icons.arrow_drop_down,
+                          size: 20,
+                          color: AppColors.ink,
                         ),
                       ),
                     ],
                   ),
                 ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 20),
-
-          // Broadcast CTA Button
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              foregroundColor: Colors.white,
-              elevation: 4,
-              shadowColor: AppColors.primary.withOpacity(0.4),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(32),
               ),
-              padding: const EdgeInsets.symmetric(vertical: 16),
             ),
-            onPressed: () => state.broadcastOrder(),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                SvgPicture.asset(
-                  'assets/aa53e.svg',
-                  width: 18,
-                  height: 16,
-                  colorFilter: const ColorFilter.mode(
-                    Colors.white,
-                    BlendMode.srcIn,
-                  ),
-                  placeholderBuilder: (_) => const Icon(
-                    Icons.cell_tower_rounded,
-                    color: Colors.white,
-                    size: 18,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Flexible(
-                  child: Text(
-                    'Broadcast Request for ₹${state.offerPrice}',
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 0.3,
+            AnimatedSize(
+              duration: AppMotion.medium,
+              curve: AppMotion.curve,
+              alignment: Alignment.topCenter,
+              child: !_open
+                  ? const SizedBox(width: double.infinity)
+                  : Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                        AppSpacing.lg,
+                        0,
+                        AppSpacing.lg,
+                        AppSpacing.sm,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Divider(color: AppColors.inkAt(0.1)),
+                          for (final source in DeliverySource.values)
+                            _SourceOption(
+                              label: source.label,
+                              checked: state.sources.contains(source),
+                              onTap: () => state.toggleSource(source),
+                            ),
+                        ],
+                      ),
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SourceOption extends StatelessWidget {
+  const _SourceOption({
+    required this.label,
+    required this.checked,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool checked;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      checked: checked,
+      label: label,
+      excludeSemantics: true,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppRadii.field),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 40),
+          child: Row(
+            children: [
+              AnimatedContainer(
+                duration: AppMotion.fast,
+                width: 18,
+                height: 18,
+                decoration: BoxDecoration(
+                  color: checked ? AppColors.ink : AppColors.surface,
+                  borderRadius: BorderRadius.circular(4),
+                  border: Border.all(
+                    color: AppColors.ink,
+                    width: AppRadii.stroke,
                   ),
                 ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 8),
-          const Center(
-            child: Text(
-              'Couriers keep 100% of fair value bids • Zero platform cut',
-              style: TextStyle(
-                color: AppColors.textMuted,
-                fontSize: 11,
+                child: checked
+                    ? const Icon(
+                        Icons.check,
+                        size: 14,
+                        color: AppColors.surface,
+                      )
+                    : null,
               ),
-            ),
+              const SizedBox(width: 10),
+              Expanded(child: Text(label, style: AppText.routeValue)),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
