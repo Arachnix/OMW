@@ -3,18 +3,22 @@
  */
 import { Router } from 'express';
 import { PaymentService } from '../services/payment/paymentService.js';
+import { requireAuth } from '../utils/auth.js';
 
 const router = Router();
+
+// Token packs are always bought for the signed-in student.
+router.use(requireAuth);
 
 /**
  * POST /api/payments/create-order
  * Initiates Razorpay test order to buy token pack (pegged at ₹1/token)
  */
 router.post('/create-order', (req, res) => {
-  const { tokenAmount, userId = 'usr-rohit' } = req.body;
+  const { tokenAmount } = req.body;
 
   try {
-    const order = PaymentService.createRazorpayOrder(Number(tokenAmount), userId);
+    const order = PaymentService.createRazorpayOrder(Number(tokenAmount), req.user.id);
     res.json({
       success: true,
       order
@@ -36,8 +40,7 @@ router.post('/verify-payment', (req, res) => {
     razorpay_order_id,
     razorpay_payment_id,
     razorpay_signature,
-    tokenAmount,
-    userId = 'usr-rohit'
+    tokenAmount
   } = req.body;
 
   try {
@@ -46,7 +49,7 @@ router.post('/verify-payment', (req, res) => {
       paymentId: razorpay_payment_id,
       signature: razorpay_signature,
       tokenAmount,
-      userId
+      userId: req.user.id
     });
 
     res.json(result);

@@ -5,24 +5,27 @@ import { Router } from 'express';
 import { store } from '../data/store.js';
 import { PaymentService } from '../services/payment/paymentService.js';
 import { TOKEN_EXCHANGE_RATE } from '../utils/tokenomics.js';
+import { requireAuth } from '../utils/auth.js';
 
 const router = Router();
+
+// Every wallet endpoint acts on the signed-in student's own wallet.
+router.use(requireAuth);
 
 /**
  * GET /api/wallet/balance
  * Returns available tokens, escrow locked, runner staked, and INR value
  */
 router.get('/balance', (req, res) => {
-  const userId = req.query.userId || 'usr-rohit';
-  const wallet = store.getWallet(userId);
-  const user = store.getUser(userId);
+  const user = req.user;
+  const wallet = store.getWallet(user.id);
 
   const totalTokens = wallet.availableTokens + wallet.escrowLocked + wallet.runnerStaked;
 
   res.json({
     success: true,
-    userId,
-    userName: user ? user.name : 'Student',
+    userId: user.id,
+    userName: user.name,
     wallet: {
       availableTokens: wallet.availableTokens,
       escrowLocked: wallet.escrowLocked,
@@ -36,13 +39,12 @@ router.get('/balance', (req, res) => {
 
 /**
  * GET /api/wallet/transactions
- * Returns ledger of all token events
+ * Returns the signed-in student's ledger of token events
  */
 router.get('/transactions', (req, res) => {
-  const userId = req.query.userId;
   const limit = req.query.limit ? parseInt(req.query.limit, 10) : 50;
 
-  const transactions = store.getTransactions(userId, limit);
+  const transactions = store.getTransactions(req.user.id, limit);
 
   res.json({
     success: true,
@@ -56,16 +58,11 @@ router.get('/transactions', (req, res) => {
  * Cash-out tokens to UPI or campus voucher (Gazebo/Foody)
  */
 router.post('/withdraw', (req, res) => {
-  const {
-    userId = 'usr-rohan',
-    tokens,
-    method = 'UPI',
-    destination
-  } = req.body;
+  const { tokens, method = 'UPI', destination } = req.body;
 
   try {
     const result = PaymentService.processWithdrawal({
-      userId,
+      userId: req.user.id,
       tokens: Number(tokens),
       method,
       destination

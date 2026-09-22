@@ -11,6 +11,18 @@ import { socketService } from '../services/socket/socketService.js';
 
 const router = Router();
 
+// Every task endpoint needs a signed-in student; `req.user` is the caller.
+router.use(requireAuth);
+
+/**
+ * Sends a 403 unless the caller is one of the allowed task participants.
+ */
+function forbidUnless(allowed, res, error) {
+  if (allowed) return false;
+  res.status(403).json({ success: false, error });
+  return true;
+}
+
 // Flat fee paid to the runner when a requester cancels after acceptance.
 const LATE_CANCEL_FEE = 5;
 // Trust score penalty when a runner drops an accepted job.
@@ -76,9 +88,10 @@ router.post('/', (req, res) => {
     dropNodeId,
     wager,
     notes = '',
-    urgency = 'normal',
-    requesterId = 'usr-rohit'
+    urgency = 'normal'
   } = req.body;
+  const requester = req.user;
+  const requesterId = requester.id;
 
   if (!title || !pickupNodeId || !dropNodeId) {
     return res.status(400).json({
@@ -96,12 +109,6 @@ router.post('/', (req, res) => {
       error: 'Invalid pickup or drop landmark node ID'
     });
   }
-
-  const requester = store.getUser(requesterId) || {
-    id: requesterId,
-    name: 'Student Requester',
-    trustScore: 4.8
-  };
 
   const finalWager = Number(wager) || 15;
 
@@ -227,7 +234,8 @@ router.get('/:id', (req, res) => {
  * Runner claims task and locks ~25% stake deposit
  */
 router.post('/:id/claim', (req, res) => {
-  const { runnerId = 'usr-rohan' } = req.body;
+  const runner = req.user;
+  const runnerId = runner.id;
   const task = store.getTask(req.params.id);
 
   if (!task) {
@@ -248,7 +256,6 @@ router.post('/:id/claim', (req, res) => {
     });
   }
 
-  const runner = store.getUser(runnerId) || { id: runnerId, name: 'Campus Runner' };
   const stakeRequired = calculateRunnerStake(task.wager);
 
   try {
@@ -289,6 +296,10 @@ router.post('/:id/verify-pickup', (req, res) => {
     return res.status(404).json({ success: false, error: 'Task not found' });
   }
 
+  if (forbidUnless(task.runnerId === req.user.id, res, 'Only the assigned runner can confirm pickup')) {
+    return;
+  }
+
   if (task.status !== 'CLAIMED') {
     return res.status(400).json({
       success: false,
@@ -326,6 +337,11 @@ router.post('/:id/verify-delivery', (req, res) => {
 
   if (!task) {
     return res.status(404).json({ success: false, error: 'Task not found' });
+  }
+
+  const isParticipant = task.runnerId === req.user.id || task.requesterId === req.user.id;
+  if (forbidUnless(isParticipant, res, 'Only the runner or requester can confirm delivery')) {
+    return;
   }
 
   if (task.status !== 'IN_TRANSIT' && task.status !== 'CLAIMED') {
@@ -379,6 +395,10 @@ router.post('/:id/surge', (req, res) => {
     return res.status(404).json({ success: false, error: 'Task not found' });
   }
 
+  if (forbidUnless(task.requesterId === req.user.id, res, 'Only the requester can boost this task')) {
+    return;
+  }
+
   if (task.status !== 'OPEN') {
     return res.status(400).json({
       success: false,
@@ -415,6 +435,10 @@ router.post('/:id/cancel', (req, res) => {
 
   if (!task) {
     return res.status(404).json({ success: false, error: 'Task not found' });
+  }
+
+  if (forbidUnless(task.requesterId === req.user.id, res, 'Only the requester can cancel this task')) {
+    return;
   }
 
   if (task.status !== 'OPEN' && task.status !== 'CLAIMED') {
@@ -458,7 +482,7 @@ router.post('/:id/cancel', (req, res) => {
  * drops 1.5%, and the task goes back to OPEN for another runner.
  */
 router.post('/:id/drop', (req, res) => {
-  const { runnerId, reason = 'Runner dropped the assignment' } = req.body || {};
+  const { reason = 'Runner dropped the assignment' } = req.body || {};
   const task = store.getTask(req.params.id);
 
   if (!task) {
@@ -472,8 +496,8 @@ router.post('/:id/drop', (req, res) => {
     });
   }
 
-  if (runnerId && task.runnerId !== runnerId) {
-    return res.status(403).json({ success: false, error: 'Task is assigned to another runner' });
+  if (forbidUnless(task.runnerId === req.user.id, res, 'Task is assigned to another runner')) {
+    return;
   }
 
   try {

@@ -13,7 +13,7 @@ export class PaymentService {
    * Generates a Razorpay INR test order to buy token packs.
    * Pegged at ₹1 per token (TOKEN_EXCHANGE_RATE = 1).
    */
-  static createRazorpayOrder(tokenAmount, userId = 'usr-rohit') {
+  static createRazorpayOrder(tokenAmount, userId) {
     if (!tokenAmount || tokenAmount <= 0) {
       throw new Error('Token amount must be greater than 0');
     }
@@ -44,7 +44,7 @@ export class PaymentService {
     paymentId,
     signature,
     tokenAmount,
-    userId = 'usr-rohit'
+    userId
   }) {
     if (!orderId || !paymentId) {
       throw new Error('Missing orderId or paymentId');

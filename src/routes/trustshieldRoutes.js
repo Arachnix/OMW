@@ -4,6 +4,7 @@
 import { Router } from 'express';
 import { store } from '../data/store.js';
 import { socketService } from '../services/socket/socketService.js';
+import { requireAuth, requireRole } from '../utils/auth.js';
 
 const router = Router();
 
@@ -27,9 +28,12 @@ router.get('/showcase', (req, res) => {
 
 /**
  * POST /api/admin/fraud/:id/feature
- * Proctor or Admin features an incident as 'day', 'month', or unfeatures it
+ * Proctor or Admin features an incident as 'day', 'month', or unfeatures it.
+ * Requires a signed-in account with the admin role.
  */
-router.post(['/admin/fraud/:id/feature', '/:id/feature'], (req, res) => {
+const featurePaths = ['/admin/fraud/:id/feature', '/:id/feature'];
+
+router.post(featurePaths, requireAuth, requireRole('admin'), (req, res) => {
   const { id } = req.params;
   const { featured } = req.body; // 'day' | 'month' | null
 

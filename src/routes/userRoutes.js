@@ -4,12 +4,16 @@
 import { Router } from 'express';
 import { store } from '../data/store.js';
 import { maskRegNumber } from '../utils/crypto.js';
+import { requireAuth, signToken } from '../utils/auth.js';
 
 const router = Router();
 
 /**
  * POST /api/auth/login
- * Mock student authentication via VIT registration number
+ * Student sign-in via VIT registration number. Returns a signed session token
+ * the client sends as `Authorization: Bearer <token>` on every other request.
+ * There is no password or email check yet, so knowing a registration number
+ * is enough to sign in as that student.
  */
 router.post('/login', (req, res) => {
   const { regNumber, name, hostelBlock = 'Hostel Block' } = req.body;
@@ -44,24 +48,18 @@ router.post('/login', (req, res) => {
     success: true,
     message: 'Authenticated successfully',
     user,
-    token: `omw_jwt_mock_${user.id}`,
+    token: signToken(user),
     wallet
   });
 });
 
 /**
  * GET /api/users/me
- * Returns current authenticated user (defaults to demo user)
+ * Returns the signed-in student and their wallet
  */
-router.get('/me', (req, res) => {
-  const userId = req.query.userId || 'usr-rohit';
-  const user = store.getUser(userId);
-
-  if (!user) {
-    return res.status(404).json({ success: false, error: 'User not found' });
-  }
-
-  const wallet = store.getWallet(userId);
+router.get('/me', requireAuth, (req, res) => {
+  const user = req.user;
+  const wallet = store.getWallet(user.id);
 
   res.json({
     success: true,
@@ -74,7 +72,7 @@ router.get('/me', (req, res) => {
  * GET /api/users/:id
  * Returns student public profile with trust rating & restriction notice
  */
-router.get('/:id', (req, res) => {
+router.get('/:id', requireAuth, (req, res) => {
   const user = store.getUser(req.params.id);
 
   if (!user) {
